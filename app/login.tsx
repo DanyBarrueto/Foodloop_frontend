@@ -1,10 +1,10 @@
+import { loginUser } from '@/services/authService';
+import loginCss from '@/styles/Login';
+import embeddedCss from '@/styles/PaginaPrincipal';
+import { router } from 'expo-router';
 import React from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import embeddedCss from '@/styles/PaginaPrincipal';
-import loginCss from '@/styles/Login';
-import { router } from 'expo-router';
-import { loginUser } from '@/services/authService';
 
 const html = `<!DOCTYPE html>
 <html lang="es">
