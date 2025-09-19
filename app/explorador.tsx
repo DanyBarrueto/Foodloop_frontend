@@ -440,11 +440,22 @@ const html = `<!DOCTYPE html>
       const listing = MOCK_LISTINGS.find(l => l.id === listingId);
       if (!listing) return;
 
+      // Si es compra (venta), redirigir a la pantalla de solicitar compra
+      if (listing.foodType === 'venta') {
+        navigateTo('/solicitar-compra');
+        return;
+      }
+
+      // Si es donación, redirigir a la pantalla de solicitar donación
+      if (listing.foodType === 'donacion') {
+        navigateTo('/solicitar-donacion');
+        return;
+      }
+
+      // Fallback (por si se agrega otro tipo en el futuro)
       requestedItems.add(listingId);
-      
-      const actionText = listing.foodType === 'donacion' ? 'donación' : 'compra';
-      const message = \`Tu solicitud de \${actionText} para "\${listing.title}" de \${listing.entityName} ha sido enviada correctamente. Te contactarán pronto.\`;
-      
+      const actionText = 'solicitud';
+      const message = \`Tu \${actionText} para "\${listing.title}" de \${listing.entityName} ha sido enviada correctamente.\`;
       showModal(message);
       renderListings(); // Re-render para actualizar el botón
     }
