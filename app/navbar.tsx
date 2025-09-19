@@ -65,7 +65,7 @@ const html = `<!DOCTYPE html>
 
             <!-- Dropdown Menu Desktop (solo para web) -->
             <div id="dropdownMenu" class="dropdown-menu">
-              <button class="dropdown-item" onclick="navigateTo('/configuracion')">
+              <button class="dropdown-item" onclick="navigateTo('/configuracion-usuario')">
                 ⚙️ Actualizar Datos
               </button>
               <button class="dropdown-item logout" onclick="handleLogout()">
@@ -98,9 +98,9 @@ const html = `<!DOCTYPE html>
         </button>
         
         <!-- Sección de usuario en móvil -->
-        <div class="mobile-account-section">
+          <div class="mobile-account-section">
           <div class="mobile-account-title">Mi Cuenta</div>
-          <button onclick="navigateTo('/configuracion')" class="mobile-link">
+          <button onclick="navigateTo('/configuracion-usuario')" class="mobile-link">
             ⚙️ Actualizar Datos
           </button>
           <button onclick="handleLogout()" class="mobile-link logout">

@@ -67,6 +67,17 @@ const html = `<!DOCTYPE html>
     function filtered(){ var p=state.posts,f=state.filter; if(f==='all')return p; if(f==='donation'||f==='sale')return p.filter(function(x){return x.type===f}); return p.filter(function(x){return x.status===f}); }
     function formatDate(iso){ try{return new Date(iso).toLocaleDateString('es-ES')}catch(e){return ''} }
 
+    // Navegación segura para botón Editar (web y nativo)
+    function goEdit(){
+      try {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'navigate', path: '/editar-publicacion' }));
+        } else if (window.top) {
+          window.top.location.href = '/editar-publicacion';
+        }
+      } catch (e) { /* noop */ }
+    }
+
     function renderStats(){
       var s=stats(); var el=document.getElementById('stats');
       el.innerHTML = [
@@ -124,9 +135,9 @@ const html = `<!DOCTYPE html>
         parts.push('<div>📨 Contacto: <span class="font-medium text-gray-800">'+post.contact+'</span></div>');
         parts.push('<div>🔖 Estado: <span class="font-medium text-gray-800">'+post.status+'</span></div>');
         parts.push('</div>');
-        parts.push('<div class="flex items-center justify-between">');
+    parts.push('<div class="flex items-center justify-between">');
         parts.push('<div class="flex items-center gap-2">');
-        parts.push('<button class="btn-secondary" onclick="event.preventDefault()">✏️ Editar</button>');
+    parts.push('<button class="btn-secondary" onclick="goEdit(); return false;">✏️ Editar</button>');
         parts.push('<button class="btn-warning" onclick="event.preventDefault()">⏸️ '+(post.status==='paused'?'Reanudar':'Pausar')+'</button>');
         parts.push('<button class="btn-danger" onclick="event.preventDefault()">🗑️ Eliminar</button>');
         parts.push('</div>');

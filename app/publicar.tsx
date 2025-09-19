@@ -1,10 +1,10 @@
+import embeddedCss from '@/styles/PaginaPrincipal';
+import PublicarCss from '@/styles/Publicar';
+import { router } from 'expo-router';
 import React from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Navbar from './navbar';
-import PublicarCss from '@/styles/Publicar';
-import embeddedCss from '@/styles/PaginaPrincipal';
-import { router } from 'expo-router';
 
 const html = `<!DOCTYPE html>
 <html lang="es">
