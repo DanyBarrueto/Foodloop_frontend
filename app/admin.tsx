@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import AdminCss from '@/styles/Admin';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import { router } from 'expo-router';
@@ -60,96 +61,7 @@ const html = `<!DOCTYPE html>
 							<div class="text-gray-600">Reportes Pendientes</div>
 						</div>
 					</div>
-					<div id="content">
-						<div class="admin-table-container animate-slide-up">
-							<div class="flex items-center justify-between p-4">
-								<h2 class="text-lg font-semibold text-gray-800">👥 Gestión de Usuarios</h2>
-								<button class="admin-btn-primary" onclick="openEdit('usuarios', null)">Nuevo Usuario</button>
-							</div>
-							<div class="overflow-x-auto">
-								<table class="admin-table">
-									<thead>
-										<tr>
-											<th>ID</th>
-											<th>Nombre</th>
-											<th>Correo</th>
-											<th>Rol</th>
-											<th>Estado</th>
-											<th>Fecha Registro</th>
-											<th>Acciones</th>
-										</tr>
-									</thead>
-									<tbody>
-										<tr>
-											<td>1</td>
-											<td>Juan Pérez</td>
-											<td>juan@email.com</td>
-											<td><span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">Restaurante</span></td>
-											<td><span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">activo</span></td>
-											<td>14/1/2024</td>
-											<td class="flex flex-wrap gap-2">
-												<button class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">✏️</button>
-												<button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600">⏸️</button>
-												<button class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">🗑️</button>
-											</td>
-										</tr>
-										<tr>
-											<td>2</td>
-											<td>María García</td>
-											<td>maria@email.com</td>
-											<td><span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">ONG</span></td>
-											<td><span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">activo</span></td>
-											<td>15/1/2024</td>
-											<td class="flex flex-wrap gap-2">
-												<button class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">✏️</button>
-												<button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600">⏸️</button>
-												<button class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">🗑️</button>
-											</td>
-										</tr>
-										<tr>
-											<td>3</td>
-											<td>Carlos López</td>
-											<td>carlos@email.com</td>
-											<td><span class="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">Supermercado</span></td>
-											<td><span class="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">Inactivo</span></td>
-											<td>13/1/2024</td>
-											<td class="flex flex-wrap gap-2">
-												<button class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">✏️</button>
-												<button class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">▶️</button>
-												<button class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">🗑️</button>
-											</td>
-										</tr>
-										<tr>
-											<td>4</td>
-											<td>Ana Martín</td>
-											<td>ana@email.com</td>
-											<td><span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs">Comprador</span></td>
-											<td><span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">activo</span></td>
-											<td>16/1/2024</td>
-											<td class="flex flex-wrap gap-2">
-												<button class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">✏️</button>
-												<button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600">⏸️</button>
-												<button class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">🗑️</button>
-											</td>
-										</tr>
-										<tr>
-											<td>5</td>
-											<td>Admin Sistema</td>
-											<td>admin@foodloop.com</td>
-											<td><span class="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs">Administrador</span></td>
-											<td><span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">activo</span></td>
-											<td>31/12/2023</td>
-											<td class="flex flex-wrap gap-2">
-												<button class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">✏️</button>
-												<button class="bg-orange-500 text-white px-3 py-1 rounded text-sm hover:bg-orange-600">⏸️</button>
-												<button class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">🗑️</button>
-											</td>
-										</tr>
-									</tbody>
-								</table>
-							</div>
-						</div>
-					</div>
+					<div id="content"></div>
 				</div>
 			</main>
 		</div>
@@ -183,8 +95,11 @@ const html = `<!DOCTYPE html>
 			</div>
 
 		<script>
+			// Variables inyectadas desde React (placeholders reemplazados en runtime)
+			const API_BASE_URL = '__API_BASE_URL__';
+			const AUTH_TOKEN = '__AUTH_TOKEN__';
 			const TABS = ['usuarios','productos','categorias','publicaciones','transacciones','reportes'];
-			const state = { activeTab: 'usuarios', edit: { open:false, tipo:'', id:null }, del: { open:false, tipo:'', id:null }, data: {
+			const state = { activeTab: 'usuarios', edit: { open:false, tipo:'', id:null }, del: { open:false, tipo:'', id:null }, statsOverride: {}, data: {
 				usuarios: [ { id:1, nombre:'Ana López', email:'ana@example.com', rol:'admin', estado:'active' }, { id:2, nombre:'Luis Pérez', email:'luis@example.com', rol:'user', estado:'inactive' }, { id:3, nombre:'María Gómez', email:'maria@example.com', rol:'user', estado:'active' } ],
 				productos: [ { id:1, nombre:'Pan artesanal', categoria:'Panadería', stock:40, precio:1.5 }, { id:2, nombre:'Leche entera', categoria:'Lácteos', stock:25, precio:0.9 } ],
 				categorias: [ { id:1, nombre:'Frutas y Verduras', productos:120 }, { id:2, nombre:'Panadería', productos:45 }, { id:3, nombre:'Lácteos', productos:60 } ],
@@ -197,10 +112,10 @@ const html = `<!DOCTYPE html>
 
 			function renderStats(){
 				const d = state.data;
-				const usuariosTotales = d.usuarios.length;
-				const publicacionesActivas = d.publicaciones.filter(p=>p.estado==='active').length;
-				const transacciones = d.transacciones.length;
-				const reportesPendientes = d.reportes.filter(r=>r.estado==='pending').length;
+				const usuariosTotales = (state.statsOverride && typeof state.statsOverride.usuariosTotales === 'number') ? state.statsOverride.usuariosTotales : d.usuarios.length;
+				const publicacionesActivas = (state.statsOverride && typeof state.statsOverride.publicacionesActivas === 'number') ? state.statsOverride.publicacionesActivas : d.publicaciones.filter(p=>p.estado==='active').length;
+				const transacciones = (state.statsOverride && typeof state.statsOverride.transacciones === 'number') ? state.statsOverride.transacciones : d.transacciones.length;
+				const reportesPendientes = (state.statsOverride && typeof state.statsOverride.reportesPendientes === 'number') ? state.statsOverride.reportesPendientes : d.reportes.filter(r=>r.estado==='pending').length;
 				const html =
 					'<div class="admin-stats-card"><div class="text-3xl font-extrabold text-primary-600">'+usuariosTotales+'</div><div class="text-gray-600">Usuarios Totales</div></div>'+
 					'<div class="admin-stats-card"><div class="text-3xl font-extrabold text-accent-600">'+publicacionesActivas+'</div><div class="text-gray-600">Publicaciones Activas</div></div>'+
@@ -221,39 +136,59 @@ const html = `<!DOCTYPE html>
 				let html = '';
 				if(state.activeTab==='usuarios'){
 					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">👥 Gestión de Usuarios</h2><button class="admin-btn-primary" onclick="openEdit(\'usuarios\', null)">➕ Nuevo Usuario</button></div>'+
+					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">👥 Gestión de Usuarios</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="usuarios">➕ Nuevo Usuario</button></div>'+
 					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.usuarios.map(u=>'<tr><td>'+u.id+'</td><td>'+u.nombre+'</td><td>'+u.email+'</td><td>'+u.rol+'</td><td>'+(u.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td><td class="flex flex-wrap gap-2"><button class="admin-btn-secondary" onclick="openEdit(\'usuarios\', '+u.id+')">✏️ Editar</button><button class="admin-btn-warning" onclick="toggleUserStatus('+u.id+')">'+(u.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button><button class="admin-btn-danger" onclick="openDelete(\'¿Eliminar el usuario '+u.nombre+'?\', \'usuarios\', '+u.id+')">🗑️ Eliminar</button></td></tr>').join('')+
+					state.data.usuarios.map(u=>'<tr><td>'+u.id+'</td><td>'+u.nombre+'</td><td>'+u.email+'</td><td>'+u.rol+'</td><td>'+(u.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td><td class="flex flex-wrap gap-2">'+
+					'<button class="admin-btn-secondary" data-action="edit" data-tipo="usuarios" data-id="'+u.id+'">✏️ Editar</button>'+
+					'<button class="admin-btn-warning" data-action="toggle-user" data-id="'+u.id+'">'+(u.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
+					'<button class="admin-btn-danger" data-action="delete" data-tipo="usuarios" data-id="'+u.id+'">🗑️ Eliminar</button>'+
+					'</td></tr>').join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='productos'){
 					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📦 Gestión de Productos</h2><button class="admin-btn-primary" onclick="openEdit(\'productos\', null)">➕ Nuevo Producto</button></div>'+
+					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📦 Gestión de Productos</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="productos">➕ Nuevo Producto</button></div>'+
 					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Nombre</th><th>Categoría</th><th>Stock</th><th>Precio</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.productos.map(p=>'<tr><td>'+p.id+'</td><td>'+p.nombre+'</td><td>'+p.categoria+'</td><td>'+p.stock+'</td><td>€ '+Number(p.precio).toFixed(2)+'</td><td class="flex flex-wrap gap-2"><button class="admin-btn-secondary" onclick="openEdit(\'productos\', '+p.id+')">✏️ Editar</button><button class="admin-btn-danger" onclick="openDelete(\'¿Eliminar el producto '+p.nombre+'?\', \'productos\', '+p.id+')">🗑️ Eliminar</button></td></tr>').join('')+
+					state.data.productos.map(p=>'<tr><td>'+p.id+'</td><td>'+p.nombre+'</td><td>'+p.categoria+'</td><td>'+p.stock+'</td><td>€ '+Number(p.precio).toFixed(2)+'</td><td class="flex flex-wrap gap-2">'+
+					'<button class="admin-btn-secondary" data-action="edit" data-tipo="productos" data-id="'+p.id+'">✏️ Editar</button>'+
+					'<button class="admin-btn-danger" data-action="delete" data-tipo="productos" data-id="'+p.id+'">🗑️ Eliminar</button>'+
+					'</td></tr>').join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='categorias'){
 					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">🏷️ Gestión de Categorías</h2><button class="admin-btn-primary" onclick="openEdit(\'categorias\', null)">➕ Nueva Categoría</button></div>'+
+					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">🏷️ Gestión de Categorías</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="categorias">➕ Nueva Categoría</button></div>'+
 					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Nombre</th><th># Productos</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.categorias.map(g=>'<tr><td>'+g.id+'</td><td>'+g.nombre+'</td><td>'+g.productos+'</td><td class="flex flex-wrap gap-2"><button class="admin-btn-secondary" onclick="openEdit(\'categorias\', '+g.id+')">✏️ Editar</button><button class="admin-btn-danger" onclick="openDelete(\'¿Eliminar la categoría '+g.nombre+'?\', \'categorias\', '+g.id+')">🗑️ Eliminar</button></td></tr>').join('')+
+					state.data.categorias.map(g=>'<tr><td>'+g.id+'</td><td>'+g.nombre+'</td><td>'+g.productos+'</td><td class="flex flex-wrap gap-2">'+
+					'<button class="admin-btn-secondary" data-action="edit" data-tipo="categorias" data-id="'+g.id+'">✏️ Editar</button>'+
+					'<button class="admin-btn-danger" data-action="delete" data-tipo="categorias" data-id="'+g.id+'">🗑️ Eliminar</button>'+
+					'</td></tr>').join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='publicaciones'){
 					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📰 Gestión de Publicaciones</h2><button class="admin-btn-primary" onclick="openEdit(\'publicaciones\', null)">➕ Nueva Publicación</button></div>'+
+					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📰 Gestión de Publicaciones</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="publicaciones">➕ Nueva Publicación</button></div>'+
 					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Título</th><th>Tipo</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.publicaciones.map(p=>'<tr><td>'+p.id+'</td><td>'+p.titulo+'</td><td>'+p.tipo+'</td><td>'+badgeEstado(p.estado)+'</td><td>'+formatDate(p.fecha)+'</td><td class="flex flex-wrap gap-2"><button class="admin-btn-secondary" onclick="openEdit(\'publicaciones\', '+p.id+')">✏️ Editar</button><button class="admin-btn-warning" onclick="togglePublicationStatus('+p.id+')"'+(p.estado==='expired'?' disabled':'')+'>'+(p.estado==='paused'?'▶️ Reanudar':'⏸️ Pausar')+'</button><button class="admin-btn-danger" onclick="openDelete(\'¿Eliminar la publicación '+p.titulo+'?\', \'publicaciones\', '+p.id+')">🗑️ Eliminar</button></td></tr>').join('')+
+					state.data.publicaciones.map(p=>'<tr><td>'+p.id+'</td><td>'+p.titulo+'</td><td>'+p.tipo+'</td><td>'+badgeEstado(p.estado)+'</td><td>'+formatDate(p.fecha)+'</td><td class="flex flex-wrap gap-2">'+
+					'<button class="admin-btn-secondary" data-action="edit" data-tipo="publicaciones" data-id="'+p.id+'">✏️ Editar</button>'+
+					'<button class="admin-btn-warning" data-action="toggle-publication" data-id="'+p.id+'"'+(p.estado==='expired'?' disabled':'')+'>'+(p.estado==='paused'?'▶️ Reanudar':'⏸️ Pausar')+'</button>'+
+					'<button class="admin-btn-danger" data-action="delete" data-tipo="publicaciones" data-id="'+p.id+'">🗑️ Eliminar</button>'+
+					'</td></tr>').join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='transacciones'){
 					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">💳 Gestión de Transacciones</h2><button class="admin-btn-primary" onclick="openEdit(\'transacciones\', null)">➕ Nueva Transacción</button></div>'+
+					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">💳 Gestión de Transacciones</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="transacciones">➕ Nueva Transacción</button></div>'+
 					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Usuario</th><th>Monto</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.transacciones.map(t=>'<tr><td>'+t.id+'</td><td>'+t.usuario+'</td><td>€ '+Number(t.monto).toFixed(2)+'</td><td>'+(t.estado==='pending'?'<span class="admin-badge-pending">Pendiente</span>':(t.estado==='completed'?'<span class="admin-badge-resolved">Completada</span>':'<span class="admin-badge-expired">Fallida</span>'))+'</td><td>'+formatDate(t.fecha)+'</td><td class="flex flex-wrap gap-2"><button class="admin-btn-secondary" onclick="openEdit(\'transacciones\', '+t.id+')">✏️ Editar</button><button class="admin-btn-danger" onclick="openDelete(\'¿Eliminar la transacción #'+t.id+'?\', \'transacciones\', '+t.id+')">🗑️ Eliminar</button></td></tr>').join('')+
+					state.data.transacciones.map(t=>'<tr><td>'+t.id+'</td><td>'+t.usuario+'</td><td>€ '+Number(t.monto).toFixed(2)+'</td><td>'+(t.estado==='pending'?'<span class="admin-badge-pending">Pendiente</span>':(t.estado==='completed'?'<span class="admin-badge-resolved">Completada</span>':'<span class="admin-badge-expired">Fallida</span>'))+'</td><td>'+formatDate(t.fecha)+'</td><td class="flex flex-wrap gap-2">'+
+					'<button class="admin-btn-secondary" data-action="edit" data-tipo="transacciones" data-id="'+t.id+'">✏️ Editar</button>'+
+					'<button class="admin-btn-danger" data-action="delete" data-tipo="transacciones" data-id="'+t.id+'">🗑️ Eliminar</button>'+
+					'</td></tr>').join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='reportes'){
 					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📝 Gestión de Reportes</h2><button class="admin-btn-primary" onclick="openEdit(\'reportes\', null)">➕ Nuevo Reporte</button></div>'+
+					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📝 Gestión de Reportes</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="reportes">➕ Nuevo Reporte</button></div>'+
 					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Reportante</th><th>Asunto</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.reportes.map(r=>'<tr><td>'+r.id+'</td><td>'+r.reportante+'</td><td>'+r.asunto+'</td><td>'+(r.estado==='pending'?'<span class="admin-badge-pending">Pendiente</span>':'<span class="admin-badge-resolved">Resuelto</span>')+'</td><td>'+formatDate(r.fecha)+'</td><td class="flex flex-wrap gap-2"><button class="admin-btn-secondary" onclick="openEdit(\'reportes\', '+r.id+')">✏️ Editar</button><button class="admin-btn-danger" onclick="openDelete(\'¿Eliminar el reporte #'+r.id+'?\', \'reportes\', '+r.id+')">🗑️ Eliminar</button></td></tr>').join('')+
+					state.data.reportes.map(r=>'<tr><td>'+r.id+'</td><td>'+r.reportante+'</td><td>'+r.asunto+'</td><td>'+(r.estado==='pending'?'<span class="admin-badge-pending">Pendiente</span>':'<span class="admin-badge-resolved">Resuelto</span>')+'</td><td>'+formatDate(r.fecha)+'</td><td class="flex flex-wrap gap-2">'+
+					'<button class="admin-btn-secondary" data-action="edit" data-tipo="reportes" data-id="'+r.id+'">✏️ Editar</button>'+
+					'<button class="admin-btn-danger" data-action="delete" data-tipo="reportes" data-id="'+r.id+'">🗑️ Eliminar</button>'+
+					'</td></tr>').join('')+
 					'</tbody></table></div></div>';
 				}
 				 c.innerHTML = html;
@@ -354,14 +289,76 @@ const html = `<!DOCTYPE html>
 
 			function updateStats(){
 				const d = state.data;
-				const usuariosTotales = d.usuarios.length;
-				const publicacionesActivas = d.publicaciones.filter(p=>p.estado==='active').length;
-				const transacciones = d.transacciones.length;
-				const reportesPendientes = d.reportes.filter(r=>r.estado==='pending').length;
+				const usuariosTotales = (state.statsOverride && typeof state.statsOverride.usuariosTotales === 'number') ? state.statsOverride.usuariosTotales : d.usuarios.length;
+				const publicacionesActivas = (state.statsOverride && typeof state.statsOverride.publicacionesActivas === 'number') ? state.statsOverride.publicacionesActivas : d.publicaciones.filter(p=>p.estado==='active').length;
+				const transacciones = (state.statsOverride && typeof state.statsOverride.transacciones === 'number') ? state.statsOverride.transacciones : d.transacciones.length;
+				const reportesPendientes = (state.statsOverride && typeof state.statsOverride.reportesPendientes === 'number') ? state.statsOverride.reportesPendientes : d.reportes.filter(r=>r.estado==='pending').length;
 				document.querySelector('#stats .admin-stats-card:nth-child(1) .text-3xl').textContent = usuariosTotales;
 				document.querySelector('#stats .admin-stats-card:nth-child(2) .text-3xl').textContent = publicacionesActivas;
 				document.querySelector('#stats .admin-stats-card:nth-child(3) .text-3xl').textContent = transacciones;
 				document.querySelector('#stats .admin-stats-card:nth-child(4) .text-3xl').textContent = reportesPendientes;
+			}
+
+			async function fetchReportesPendientes(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const res = await fetch(API_BASE_URL + '/reportes', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
+					if(!res.ok) { return; }
+					const data = await res.json();
+					// estado: 1 => pendiente/activo; 0 => eliminado/resuelto (no contar)
+					const pending = Array.isArray(data) ? data.filter(function(r){ return Number(r && r.estado) === 1; }).length : 0;
+					state.statsOverride = state.statsOverride || {};
+					state.statsOverride.reportesPendientes = pending;
+					// Actualiza inmediatamente el DOM del stat card de reportes (4to card)
+					const el = document.querySelector('#stats .admin-stats-card:nth-child(4) .text-3xl');
+					if(el) el.textContent = String(pending);
+				} catch(e){ /* noop */ }
+			}
+
+			async function fetchTransaccionesCount(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const res = await fetch(API_BASE_URL + '/transacciones', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
+					if(!res.ok) { return; }
+					const data = await res.json();
+					const count = Array.isArray(data) ? data.length : (typeof data?.total === 'number' ? data.total : 0);
+					state.statsOverride = state.statsOverride || {};
+					state.statsOverride.transacciones = count;
+					// Actualiza inmediatamente el DOM del stat card de transacciones (3er card)
+					const el = document.querySelector('#stats .admin-stats-card:nth-child(3) .text-3xl');
+					if(el) el.textContent = String(count);
+				} catch(e){ /* noop */ }
+			}
+
+			async function fetchPublicacionesActivas(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const res = await fetch(API_BASE_URL + '/publicaciones', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
+					if(!res.ok) { return; }
+					const data = await res.json();
+					// Backend usa estado:number (1 activo, 0 dado de baja). Contamos estado===1 como activas
+					const actives = Array.isArray(data) ? data.filter(function(p){ return Number(p && p.estado) === 1; }).length : 0;
+					state.statsOverride = state.statsOverride || {};
+					state.statsOverride.publicacionesActivas = actives;
+					// Actualiza inmediatamente el DOM del stat card de publicaciones (2do card)
+					const el = document.querySelector('#stats .admin-stats-card:nth-child(2) .text-3xl');
+					if(el) el.textContent = String(actives);
+				} catch(e){ /* noop */ }
+			}
+
+			async function fetchUsersCount(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const res = await fetch(API_BASE_URL + '/users', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
+					if(!res.ok) { return; }
+					const data = await res.json();
+					const count = Array.isArray(data) ? data.length : (typeof data?.total === 'number' ? data.total : 0);
+					state.statsOverride = state.statsOverride || {};
+					state.statsOverride.usuariosTotales = count;
+					// Actualiza inmediatamente el DOM del stat card
+					const n = document.querySelector('#stats .admin-stats-card:nth-child(1) .text-3xl');
+					if(n) n.textContent = String(count);
+				} catch(e){ /* noop */ }
 			}
 
 			function qs(id){ return document.getElementById(id); }
@@ -376,13 +373,58 @@ const html = `<!DOCTYPE html>
 
 			function init(){
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
+				renderStats();
 				renderContent(); // Mostrar contenido inicial
+				fetchUsersCount();
+				fetchPublicacionesActivas();
+				fetchTransaccionesCount();
+				fetchReportesPendientes();
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
 				qs('editForm').addEventListener('submit', saveEdit);
 				qs('btnCloseDelete').addEventListener('click', closeDelete);
 				qs('btnCancelDelete').addEventListener('click', closeDelete);
 				qs('btnConfirmDelete').addEventListener('click', confirmDelete);
+				// Delegación de eventos para acciones en tablas
+				document.getElementById('content').addEventListener('click', function(ev){
+					var el = ev.target;
+					while(el && el.nodeType===1 && el.tagName!=='BUTTON'){ el = el.parentElement; }
+					var btn = (el && el.tagName==='BUTTON') ? el : null;
+					if(!btn) return;
+					const action = btn.getAttribute('data-action');
+					if(!action) return;
+					const tipo = btn.getAttribute('data-tipo');
+					const idAttr = btn.getAttribute('data-id');
+					const id = idAttr ? parseInt(idAttr, 10) : null;
+					switch(action){
+						case 'open-new': if(tipo) openEdit(tipo, null); break;
+						case 'edit': if(tipo && id!=null) openEdit(tipo, id); break;
+						case 'toggle-user': if(id!=null) toggleUserStatus(id); break;
+						case 'toggle-publication': if(id!=null) togglePublicationStatus(id); break;
+						case 'delete':
+							if(!tipo || id==null) break;
+							let mensaje = '';
+							if(tipo==='usuarios'){
+								const u = state.data.usuarios.find(x=>x.id===id);
+								mensaje = '¿Eliminar el usuario '+(u? u.nombre : ('#'+id))+'?';
+							} else if(tipo==='productos'){
+								const p = state.data.productos.find(x=>x.id===id);
+								mensaje = '¿Eliminar el producto '+(p? p.nombre : ('#'+id))+'?';
+							} else if(tipo==='categorias'){
+								const g = state.data.categorias.find(x=>x.id===id);
+								mensaje = '¿Eliminar la categoría '+(g? g.nombre : ('#'+id))+'?';
+							} else if(tipo==='publicaciones'){
+								const p = state.data.publicaciones.find(x=>x.id===id);
+								mensaje = '¿Eliminar la publicación '+(p? p.titulo : ('#'+id))+'?';
+							} else if(tipo==='transacciones'){
+								mensaje = '¿Eliminar la transacción #'+id+'?';
+							} else if(tipo==='reportes'){
+								mensaje = '¿Eliminar el reporte #'+id+'?';
+							}
+							openDelete(mensaje, tipo, id);
+							break;
+					}
+				});
 				// Cerrar modales al clicar fuera
 				document.getElementById('modalOverlay').addEventListener('click', function(e){ if(e.target===this) closeEdit(); });
 				document.getElementById('deleteOverlay').addEventListener('click', function(e){ if(e.target===this) closeDelete(); });
@@ -392,13 +434,57 @@ const html = `<!DOCTYPE html>
 			// Exponer init global para onload y fallback
 			window.init = function(){ try { 
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
+				renderStats();
 				renderContent(); // Mostrar contenido inicial
+				fetchUsersCount();
+				fetchPublicacionesActivas();
+				fetchTransaccionesCount();
+				fetchReportesPendientes();
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
 				qs('editForm').addEventListener('submit', saveEdit);
 				qs('btnCloseDelete').addEventListener('click', closeDelete);
 				qs('btnCancelDelete').addEventListener('click', closeDelete);
 				qs('btnConfirmDelete').addEventListener('click', confirmDelete);
+				document.getElementById('content').addEventListener('click', function(ev){
+					var el = ev.target;
+					while(el && el.nodeType===1 && el.tagName!=='BUTTON'){ el = el.parentElement; }
+					var btn = (el && el.tagName==='BUTTON') ? el : null;
+					if(!btn) return;
+					const action = btn.getAttribute('data-action');
+					if(!action) return;
+					const tipo = btn.getAttribute('data-tipo');
+					const idAttr = btn.getAttribute('data-id');
+					const id = idAttr ? parseInt(idAttr, 10) : null;
+					switch(action){
+						case 'open-new': if(tipo) openEdit(tipo, null); break;
+						case 'edit': if(tipo && id!=null) openEdit(tipo, id); break;
+						case 'toggle-user': if(id!=null) toggleUserStatus(id); break;
+						case 'toggle-publication': if(id!=null) togglePublicationStatus(id); break;
+						case 'delete':
+							if(!tipo || id==null) break;
+							let mensaje = '';
+							if(tipo==='usuarios'){
+								const u = state.data.usuarios.find(x=>x.id===id);
+								mensaje = '¿Eliminar el usuario '+(u? u.nombre : ('#'+id))+'?';
+							} else if(tipo==='productos'){
+								const p = state.data.productos.find(x=>x.id===id);
+								mensaje = '¿Eliminar el producto '+(p? p.nombre : ('#'+id))+'?';
+							} else if(tipo==='categorias'){
+								const g = state.data.categorias.find(x=>x.id===id);
+								mensaje = '¿Eliminar la categoría '+(g? g.nombre : ('#'+id))+'?';
+							} else if(tipo==='publicaciones'){
+								const p = state.data.publicaciones.find(x=>x.id===id);
+								mensaje = '¿Eliminar la publicación '+(p? p.titulo : ('#'+id))+'?';
+							} else if(tipo==='transacciones'){
+								mensaje = '¿Eliminar la transacción #'+id+'?';
+							} else if(tipo==='reportes'){
+								mensaje = '¿Eliminar el reporte #'+id+'?';
+							}
+							openDelete(mensaje, tipo, id);
+							break;
+					}
+				});
 				document.getElementById('modalOverlay').addEventListener('click', function(e){ if(e.target===this) closeEdit(); });
 				document.getElementById('deleteOverlay').addEventListener('click', function(e){ if(e.target===this) closeDelete(); });
 				document.addEventListener('keydown', function(ev){ if(ev.key==='Escape'){ if(state.edit.open) closeEdit(); if(state.del.open) closeDelete(); } });
@@ -416,14 +502,23 @@ const html = `<!DOCTYPE html>
 	</html>`;
 
 export default function AdminScreen(){
+	const { token } = useAuth();
 	const webViewRef = React.useRef<WebView>(null);
+
+	// El backend expone las rutas bajo /foodloop en el puerto 4001
+	const apiBase = 'http://localhost:4001/foodloop';
+	const htmlWithEnv = React.useMemo(()=>{
+		return html
+		  .replace('__API_BASE_URL__', apiBase)
+		  .replace('__AUTH_TOKEN__', token ?? '');
+	}, [token]);
 
 	if (Platform.OS === 'web') {
 		return (
 			<SafeAreaView style={styles.safe}>
 				<Navbar />
 				<View style={styles.iframeContainer}>
-					<iframe title="Admin" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+					<iframe title="Admin" srcDoc={htmlWithEnv} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
 				</View>
 			</SafeAreaView>
 		);
@@ -435,7 +530,7 @@ export default function AdminScreen(){
 			<WebView
 				ref={webViewRef}
 				originWhitelist={["*"]}
-				source={{ html }}
+				source={{ html: htmlWithEnv }}
 				style={styles.webview}
 				javaScriptEnabled
 				domStorageEnabled
