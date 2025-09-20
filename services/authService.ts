@@ -1,7 +1,7 @@
 // services/authService.ts
 import { storage } from '@/utils/storage';
 
-const API_BASE_URL = 'http://localhost:4001';
+const API_BASE_URL = 'http://localhost:4001/foodloop';
 
 export interface LoginRequest {
   email: string;
@@ -31,7 +31,7 @@ export interface ApiError {
  */
 export const loginUser = async (credentials: LoginRequest): Promise<LoginResponse | ApiError> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,9 +1,10 @@
 // app/(tabs)/PantallaPrincipal.tsx
+import { storage } from '@/utils/storage';
+import { router } from "expo-router";
 import React from "react";
-import { SafeAreaView, StyleSheet, Platform, View } from "react-native";
+import { Platform, SafeAreaView, StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
 import embeddedCss from "../../styles/PaginaPrincipal";
-import { router } from "expo-router";
 
 /**
  * Muestra HTML incrustado:
@@ -114,7 +115,7 @@ const htmlContent = `<!DOCTYPE html>
                 <a href="#nosotros" class="text-gray-700 hover:text-primary-600 font-medium transition-colors">Nosotros</a>
                 <a href="#como-funciona" class="text-gray-700 hover:text-primary-600 font-medium transition-colors">Cómo Funciona</a>
                 <a href="#impacto" class="text-gray-700 hover:text-primary-600 font-medium transition-colors">Impacto</a>
-                <a href="/login" class="text-gray-700 hover:text-accent-600 font-semibold transition-colors" onclick="try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'navigate',path:'/login'}));event.preventDefault();}catch(e){}">🔑 Iniciar Sesión</a>
+                <a href="/login" class="text-gray-700 hover:text-accent-600 font-semibold transition-colors" onclick="try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'navigate',path:'/login'}));event.preventDefault();}catch(e){}">🔑 Ingresar</a>
             </div>
             <div class="md:hidden">
                 <button id="menuToggle" class="text-gray-700">
@@ -133,7 +134,7 @@ const htmlContent = `<!DOCTYPE html>
             <a href="#nosotros" class="mobile-link">Nosotros</a>
             <a href="#como-funciona" class="mobile-link">Cómo Funciona</a>
             <a href="#impacto" class="mobile-link">Impacto</a>
-            <a href="/login" class="mobile-link" onclick="try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'navigate',path:'/login'}));event.preventDefault();}catch(e){}">🔑 Iniciar Sesión</a>
+            <a href="/login" class="mobile-link" onclick="try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'navigate',path:'/login'}));event.preventDefault();}catch(e){}">🔑 Ingresar</a>
         </div>
     </div>
 
@@ -644,13 +645,27 @@ export default function PantallaPrincipal() {
                         }, true);
                     })();
                 `}
-                onShouldStartLoadWithRequest={(request) => {
+                                onShouldStartLoadWithRequest={(request) => {
                     try {
                         const url = request?.url || '';
                         // Intercepta intentos de navegación a login/register desde el contenido
-                        if (url.endsWith('/login') || url.includes('/login') || url.endsWith('/register') || url.includes('/register')) {
-                            const path = url.includes('/register') ? '/register' : '/login';
-                            router.push(path);
+                                                if (url.endsWith('/login') || url.includes('/login') || url.endsWith('/register') || url.includes('/register')) {
+                                                        const isRegister = url.includes('/register');
+                                                        if (isRegister) {
+                                                            router.push('/register');
+                                                        } else {
+                                                            // Si ya hay sesión, redirigir a destino según rol
+                                                            (async () => {
+                                                                const token = await storage.getToken();
+                                                                if (token) {
+                                                                    const user = await storage.getUserData();
+                                                                    const target = user?.estado === 2 ? '/admin' : '/explorador';
+                                                                    router.replace(target as any);
+                                                                } else {
+                                                                    router.push('/login');
+                                                                }
+                                                            })();
+                                                        }
                             return false; // cancelar carga en el WebView
                         }
                     } catch {}
@@ -659,8 +674,21 @@ export default function PantallaPrincipal() {
                 onMessage={(event) => {
                     try {
                         const data = JSON.parse(event.nativeEvent.data);
-                        if (data?.type === 'navigate' && typeof data.path === 'string') {
-                            router.push(data.path);
+                                                if (data?.type === 'navigate' && typeof data.path === 'string') {
+                                                        if (data.path === '/login') {
+                                                            (async () => {
+                                                                const token = await storage.getToken();
+                                                                if (token) {
+                                                                    const user = await storage.getUserData();
+                                                                    const target = user?.estado === 2 ? '/admin' : '/explorador';
+                                                                    router.replace(target as any);
+                                                                } else {
+                                                                    router.push('/login');
+                                                                }
+                                                            })();
+                                                        } else {
+                                                            router.push(data.path);
+                                                        }
                         }
                     } catch {}
                 }}

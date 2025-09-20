@@ -1,3 +1,4 @@
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { overlayBus } from '@/utils/overlayBus';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
@@ -7,20 +8,28 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { router } from 'expo-router';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
-export default function RootLayout() {
+function RootLayoutInner() {
   const colorScheme = useColorScheme();
   const [showAccountMenu, setShowAccountMenu] = React.useState(false);
+  const { logout } = useAuth();
 
   React.useEffect(() => {
     const offShow = overlayBus.on('showAccountMenu', () => setShowAccountMenu(true));
     const offHide = overlayBus.on('hideOverlay', () => setShowAccountMenu(false));
     const offAction = overlayBus.on('accountAction', ({ action }) => {
       setShowAccountMenu(false);
+      if (action === 'logout') {
+        // Cerrar sesión global
+        logout().finally(() => {
+          try { router.replace('/(tabs)/PantallaPrincipal' as any); } catch {}
+        });
+      }
     });
     return () => { offShow(); offHide(); offAction(); };
   }, []);
@@ -49,6 +58,14 @@ export default function RootLayout() {
       )}
       <StatusBar style="auto" />
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootLayoutInner />
+    </AuthProvider>
   );
 }
 

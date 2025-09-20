@@ -1,8 +1,10 @@
+import { useAuth } from '@/context/AuthContext';
 import { loginUser } from '@/services/authService';
 import loginCss from '@/styles/Login';
 import embeddedCss from '@/styles/PaginaPrincipal';
+import { storage } from '@/utils/storage';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -194,7 +196,7 @@ const html = `<!DOCTYPE html>
           }));
         } else {
           // Para web: realizar petición directa
-          const response = await fetch('http://localhost:4001/auth/login', {
+          const response = await fetch('http://localhost:4001/foodloop/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -209,9 +211,15 @@ const html = `<!DOCTYPE html>
             throw new Error(data.message || \`Error \${response.status}: \${response.statusText}\`);
           }
 
-          // Éxito en web
-          const path = data.user?.estado === 2 ? '/administrador-spt' : '/explorador';
-          window.top && (window.top.location.href = path);
+          // Éxito en web: notificar al parent (iframe) para que guarde y navegue
+          try {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'login_success', payload: data }, '*');
+            } else {
+              const path = data.user?.estado === 2 ? '/admin' : '/explorador';
+              window.top && (window.top.location.href = path);
+            }
+          } catch {}
         }
       } catch(err){ 
         console.error('Error en login:', err);
@@ -233,6 +241,18 @@ const html = `<!DOCTYPE html>
 
 export default function LoginScreen() {
   const webViewRef = React.useRef<WebView>(null);
+  const { isAuthenticated } = useAuth();
+
+  // Si ya hay sesión iniciada, redirigir automáticamente
+  useEffect(() => {
+    (async () => {
+      if (isAuthenticated) {
+        const user = await storage.getUserData();
+        const path = user?.estado === 2 ? '/admin' : '/explorador';
+        router.replace(path as any);
+      }
+    })();
+  }, [isAuthenticated]);
 
   // Función para enviar mensajes al WebView
   const sendMessageToWebView = (message: any) => {
@@ -253,8 +273,8 @@ export default function LoginScreen() {
       
       if (result.success && result.user) {
         // Determinar la ruta según el estado del usuario
-        const path = result.user.estado === 2 ? '/administrador-spt' : '/explorador';
-        router.push(path as any);
+  const path = result.user.estado === 2 ? '/admin' : '/explorador';
+  router.replace(path as any);
       } else {
         // Enviar error de vuelta al WebView
         const errorMessage = result.message || 'Error desconocido en el login';
@@ -277,7 +297,28 @@ export default function LoginScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.iframeContainer}>
           {/* eslint-disable-next-line react/no-danger */}
-          <iframe title="Login HTML" srcDoc={html} style={styles.iframe} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+          <iframe
+            title="Login HTML"
+            srcDoc={html}
+            style={styles.iframe}
+            sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation"
+            onLoad={() => {
+              // Escuchar mensajes del iframe para guardar token/usuario en web puro
+              const handler = async (event: MessageEvent) => {
+                try {
+                  const data = event.data;
+                  if (data && data.type === 'login_success' && data.payload) {
+                    const { token, user } = data.payload || {};
+                    if (token) await storage.setToken(token);
+                    if (user) await storage.setUserData(user);
+                    const path = user?.estado === 2 ? '/admin' : '/explorador';
+                    router.replace(path as any);
+                  }
+                } catch {}
+              };
+              window.addEventListener('message', handler as any);
+            }}
+          />
         </View>
       </SafeAreaView>
     );
@@ -307,10 +348,10 @@ export default function LoginScreen() {
         `}
         onShouldStartLoadWithRequest={(request) => {
           const url = request?.url || '';
-          if (url.includes('/PantallaPrincipal') || url.includes('/register') || url.includes('/explorador') || url.includes('/administrador-spt')) {
-            const path = url.includes('/administrador-spt') ? '/administrador-spt' : url.includes('/explorador') ? '/explorador' : url.includes('/register') ? '/register' : '/PantallaPrincipal';
+          if (url.includes('/PantallaPrincipal') || url.includes('/register') || url.includes('/explorador') || url.includes('/admin')) {
+            const path = url.includes('/admin') ? '/admin' : url.includes('/explorador') ? '/explorador' : url.includes('/register') ? '/register' : '/PantallaPrincipal';
             // Tipado laxo porque estas rutas pueden no estar tipadas aún
-            router.push(path as any);
+            router.replace(path as any);
             return false;
           }
           return true;
@@ -319,7 +360,7 @@ export default function LoginScreen() {
           try {
             const data = JSON.parse(event.nativeEvent.data);
             if (data?.type === 'navigate' && typeof data.path === 'string') {
-              router.push(data.path as any);
+              router.replace(data.path as any);
             } else if (data?.type === 'login' && data.credentials) {
               // Manejar petición de login desde el WebView
               handleLogin(data.credentials);

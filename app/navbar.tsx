@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import navbarCss from '@/styles/Navbar';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import { overlayBus } from '@/utils/overlayBus';
@@ -139,12 +140,17 @@ const html = `<!DOCTYPE html>
     // Función para manejar logout
     function handleLogout() {
       try {
-        if (isReactNative && window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        // Siempre notificar hacia el contenedor (RN o parent web)
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
           window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'logout' }));
-        } else {
-          // En web, limpiar datos y redirigir
-          localStorage.removeItem('foodconnect_user');
-          window.top && (window.top.location.href = '/login');
+        }
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'logout' }, '*');
+        }
+        // Fallback para web pura en caso de que no haya contenedor
+        if (!isReactNative && (!window.parent || window.parent === window)) {
+          try{ localStorage.removeItem('authToken'); localStorage.removeItem('userData'); }catch(e){}
+          window.top && (window.top.location.href = '/PantallaPrincipal');
         }
       } catch (e) {
         console.error('Error en logout:', e);
@@ -234,6 +240,7 @@ const html = `<!DOCTYPE html>
 
 export default function Navbar({ onMessage }: NavbarProps) {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const { logout } = useAuth();
 
   // Sincronizar estado local con el overlay global
   useEffect(() => {
@@ -250,8 +257,10 @@ export default function Navbar({ onMessage }: NavbarProps) {
         router.push(data.path as any);
       } else if (data?.type === 'logout') {
         setShowAccountDropdown(false);
-        // Aquí puedes agregar lógica de logout específica
-        router.push('/login' as any);
+        // Logout global (RN)
+        logout().finally(() => {
+          router.replace('/(tabs)/PantallaPrincipal' as any);
+        });
       } else if (data?.type === 'showAccountMenu') {
         setShowAccountDropdown(true);
         overlayBus.emit('showAccountMenu', {});
@@ -276,6 +285,13 @@ export default function Navbar({ onMessage }: NavbarProps) {
         const data = e.data || {};
         if (data && data.type === 'navbarDropdown') {
           setIframeHeight(data.open ? 220 : 80);
+          return;
+        }
+        if (data && data.type === 'logout') {
+          // Logout global (web)
+          logout().finally(() => {
+            router.replace('/(tabs)/PantallaPrincipal' as any);
+          });
         }
       };
       window.addEventListener('message', handler);
