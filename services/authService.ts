@@ -50,6 +50,16 @@ export interface RegisterResponse {
   };
 }
 
+export interface ResetPasswordRequest {
+  email: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  success: boolean;
+  message?: string;
+}
+
 /**
  * Realiza el login del usuario contra el backend
  */
@@ -214,6 +224,40 @@ export const registerUser = async (payload: RegisterRequest): Promise<RegisterRe
     };
   } catch (error) {
     console.error('Error en registerUser:', error);
+    return {
+      success: false,
+      message: 'Error de conexión. Verifica que el servidor esté ejecutándose en localhost:4001',
+    };
+  }
+};
+
+/**
+ * Restablece la contraseña por email
+ */
+export const resetPassword = async (payload: ResetPasswordRequest): Promise<ResetPasswordResponse | ApiError> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.message || `Error ${response.status}: ${response.statusText}`,
+        statusCode: response.status,
+      };
+    }
+
+    return { success: true, message: data.message || 'Contraseña actualizada correctamente' };
+  } catch (error) {
+    console.error('Error en resetPassword:', error);
     return {
       success: false,
       message: 'Error de conexión. Verifica que el servidor esté ejecutándose en localhost:4001',

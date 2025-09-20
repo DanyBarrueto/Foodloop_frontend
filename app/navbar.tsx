@@ -2,6 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import navbarCss from '@/styles/Navbar';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import { overlayBus } from '@/utils/overlayBus';
+import { storage } from '@/utils/storage';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -11,7 +12,9 @@ interface NavbarProps {
   onMessage?: (data: any) => void;
 }
 
-const html = `<!DOCTYPE html>
+const getNavbarHTML = (userState: number = 1) => {
+  console.log('Generando navbar HTML con userState:', userState);
+  return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -54,6 +57,10 @@ const html = `<!DOCTYPE html>
           <button onclick="navigateTo('/solicitadas')" class="nav-link">
             Solicitadas
           </button>
+          ${userState === 2 ? `
+          <button onclick="navigateTo('/admin')" class="nav-link admin-link">
+            👑 Administrador
+          </button>` : ''}
           
           <!-- Dropdown menu funcional para ambas plataformas -->
           <div class="dropdown">
@@ -97,6 +104,10 @@ const html = `<!DOCTYPE html>
         <button onclick="navigateTo('/solicitadas')" class="mobile-link">
           Solicitadas
         </button>
+        ${userState === 2 ? `
+        <button onclick="navigateTo('/admin')" class="mobile-link admin-link">
+          👑 Administrador
+        </button>` : ''}
         
         <!-- Sección de usuario en móvil -->
           <div class="mobile-account-section">
@@ -237,10 +248,33 @@ const html = `<!DOCTYPE html>
   </script>
 </body>
 </html>`;
+};
 
 export default function Navbar({ onMessage }: NavbarProps) {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [userState, setUserState] = useState(1); // Estado por defecto
   const { logout } = useAuth();
+
+  console.log('Navbar renderizando con userState:', userState);
+
+  // Obtener estado del usuario al montar el componente
+  useEffect(() => {
+    const getUserState = async () => {
+      try {
+        const userData = await storage.getUserData();
+        console.log('Datos del usuario en navbar:', userData);
+        if (userData?.estado) {
+          console.log('Estado del usuario:', userData.estado);
+          setUserState(userData.estado);
+        }
+        // DEBUG: Forzar estado 2 para verificar que la UI funciona
+        // setUserState(2);
+      } catch (error) {
+        console.error('Error obteniendo datos del usuario:', error);
+      }
+    };
+    getUserState();
+  }, []);
 
   // Sincronizar estado local con el overlay global
   useEffect(() => {
@@ -303,7 +337,7 @@ export default function Navbar({ onMessage }: NavbarProps) {
         {/* eslint-disable-next-line react/no-danger */}
         <iframe
           title="Navbar HTML"
-          srcDoc={html}
+          srcDoc={getNavbarHTML(userState)}
           style={{ ...(styles.iframe as any), height: iframeHeight }}
           sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation"
         />
@@ -316,7 +350,7 @@ export default function Navbar({ onMessage }: NavbarProps) {
     <View style={styles.container}>
       <WebView
         originWhitelist={["*"]}
-        source={{ html }}
+        source={{ html: getNavbarHTML(userState) }}
         style={styles.webview}
         pointerEvents={showAccountDropdown ? 'none' : 'auto'}
         javaScriptEnabled

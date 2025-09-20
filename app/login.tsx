@@ -1,5 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
-import { loginUser } from '@/services/authService';
+import { loginUser, resetPassword } from '@/services/authService';
 import loginCss from '@/styles/Login';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import { storage } from '@/utils/storage';
@@ -97,7 +97,7 @@ const html = `<!DOCTYPE html>
       </div>
 
       <!-- Login Form -->
-      <form id="loginForm" class="space-y-6">
+  <form id="loginForm" class="space-y-6">
         <!-- Email -->
         <div class="space-y-2">
           <label for="email" class="block text-sm font-semibold text-gray-700">📧 Correo Electrónico</label>
@@ -110,11 +110,7 @@ const html = `<!DOCTYPE html>
         </div>
         <!-- Remember & Forgot -->
         <div class="flex items-center justify-between text-sm">
-          <label class="flex items-center gap-2 text-gray-600">
-            <input type="checkbox" class="rounded border-primary-300 text-primary-600 focus:ring-primary-500" />
-            Recordarme
-          </label>
-          <a href="#" class="text-primary-600 hover:text-primary-700 font-medium">¿Olvidaste tu contraseña?</a>
+          <a href="#" id="forgotLink" class="text-primary-600 hover:text-primary-700 font-medium">¿Olvidaste tu contraseña?</a>
         </div>
         <div id="error" class="error-text hidden"></div>
   <button type="submit" id="submitBtn" class="btn-login-primary w-full">🚀 Iniciar Sesión</button>
@@ -127,6 +123,33 @@ const html = `<!DOCTYPE html>
       <!-- Back to Home -->
       <div class="mt-6 text-center">
         <a href="/PantallaPrincipal" class="btn-secondary" onclick="try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'navigate',path:'/PantallaPrincipal'}));event.preventDefault();}catch(e){}">🏠 Volver al inicio</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Reset Password -->
+  <div id="resetModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-[90%] max-w-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900">Restablecer contraseña</h3>
+      <p class="text-sm text-gray-600 mt-1">Ingresa tu correo y la nueva contraseña.</p>
+      <div class="mt-4 space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Correo</label>
+          <input id="resetEmail" type="email" class="input-field" placeholder="tu@email.com" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Nueva contraseña</label>
+          <input id="resetPassword" type="password" class="input-field" placeholder="••••••••" />
+          <div class="mt-2">
+            <div class="progress-bar" id="resetPasswordStrength"></div>
+            <p class="text-xs text-gray-500 mt-1" id="resetPasswordText">💡 Debe tener: 8+ caracteres, mayúscula, minúscula, número y símbolo</p>
+          </div>
+        </div>
+        <div id="resetError" class="text-sm text-red-600 hidden"></div>
+      </div>
+      <div class="mt-6 flex justify-end gap-3">
+        <button id="resetCancel" class="btn-secondary">Cancelar</button>
+        <button id="resetSubmit" class="btn-primary">Actualizar</button>
       </div>
     </div>
   </div>
@@ -235,6 +258,121 @@ const html = `<!DOCTYPE html>
         }
       }
     });
+
+    // Forgot password modal logic
+    (function(){
+      const forgot = document.getElementById('forgotLink');
+      const modal = document.getElementById('resetModal');
+      const emailEl = document.getElementById('resetEmail');
+      const passEl = document.getElementById('resetPassword');
+      const errEl = document.getElementById('resetError');
+      const cancelBtn = document.getElementById('resetCancel');
+      const submitBtn = document.getElementById('resetSubmit');
+      const strengthBar = document.getElementById('resetPasswordStrength');
+      const strengthText = document.getElementById('resetPasswordText');
+
+      // Estado inicial
+      if (strengthBar) { strengthBar.className = 'progress-bar strength-weak'; }
+      if (strengthText) {
+        try {
+          strengthText.textContent = '💡 Debe tener: 8+ caracteres, mayúscula, minúscula, número y símbolo';
+        } catch(_) {
+          strengthText.textContent = 'Debe tener: 8+ caracteres, mayúscula, minúscula, número y símbolo';
+        }
+        strengthText.className = 'text-xs text-gray-500 mt-1';
+      }
+
+      function updateStrength(pwd){
+        if(!strengthBar || !strengthText) return;
+        let strength = 0; let missingRequirements = [];
+        if (pwd.length >= 8) strength++; else missingRequirements.push('8 caracteres mínimo');
+        if (/[a-z]/.test(pwd)) strength++; else missingRequirements.push('1 letra minúscula (a-z)');
+        if (/[A-Z]/.test(pwd)) strength++; else missingRequirements.push('1 letra mayúscula (A-Z)');
+        if (/[0-9]/.test(pwd)) strength++; else missingRequirements.push('1 número (0-9)');
+        if (/[^A-Za-z0-9]/.test(pwd)) strength++; else missingRequirements.push('1 carácter especial (!@#$%^&*)');
+        strengthBar.className = 'progress-bar';
+        if (strength === 0) {
+          strengthBar.classList.add('strength-weak');
+          try { strengthText.textContent = '🔴 Agrega al menos 8 caracteres, incluyendo mayúsculas, minúsculas, números y símbolos'; }
+          catch(_) { strengthText.textContent = 'Agrega al menos 8 caracteres, incluyendo mayúsculas, minúsculas, números y símbolos'; }
+          strengthText.className = 'text-xs text-red-500 mt-1';
+        } else if (strength === 1) {
+          strengthBar.classList.add('strength-weak');
+          try { strengthText.textContent = '🟠 Necesitas: ' + missingRequirements.join(' + '); }
+          catch(_) { strengthText.textContent = 'Necesitas: ' + missingRequirements.join(' + '); }
+          strengthText.className = 'text-xs text-orange-500 mt-1';
+        } else if (strength === 2) {
+          strengthBar.classList.add('strength-weak');
+          try { strengthText.textContent = '🟠 Te faltan: ' + missingRequirements.join(' + '); }
+          catch(_) { strengthText.textContent = 'Te faltan: ' + missingRequirements.join(' + '); }
+          strengthText.className = 'text-xs text-orange-500 mt-1';
+        } else if (strength === 3) {
+          strengthBar.classList.add('strength-fair');
+          try { strengthText.textContent = '🟡 ¡Casi! Solo necesitas: ' + missingRequirements.join(' + '); }
+          catch(_) { strengthText.textContent = '¡Casi! Solo necesitas: ' + missingRequirements.join(' + '); }
+          strengthText.className = 'text-xs text-yellow-500 mt-1';
+        } else if (strength === 4) {
+          strengthBar.classList.add('strength-good');
+          try { strengthText.textContent = '🟡 ¡Excelente progreso! Solo falta: ' + missingRequirements.join(''); }
+          catch(_) { strengthText.textContent = '¡Excelente progreso! Solo falta: ' + missingRequirements.join(''); }
+          strengthText.className = 'text-xs text-yellow-500 mt-1';
+        } else if (strength === 5) {
+          strengthBar.classList.add('strength-strong');
+          try { strengthText.textContent = '🟢 ¡Contraseña perfecta! Cumple todos los requisitos de seguridad'; }
+          catch(_) { strengthText.textContent = '¡Contraseña perfecta! Cumple todos los requisitos de seguridad'; }
+          strengthText.className = 'text-xs text-green-500 mt-1';
+        }
+      }
+
+      function openModal(){ if(modal){ modal.style.display='flex'; } if(errEl){ errEl.classList.add('hidden'); errEl.textContent=''; } }
+      function closeModal(){ if(modal){ modal.style.display='none'; } }
+
+      if(forgot){ forgot.addEventListener('click', function(e){ e.preventDefault(); openModal(); }); }
+      if(cancelBtn){ cancelBtn.addEventListener('click', function(e){ e.preventDefault(); closeModal(); }); }
+      
+      // Listeners para actualizar fortaleza en tiempo real
+      if(passEl){ 
+        passEl.addEventListener('input', function(e){ updateStrength((e && e.target && e.target.value) || ''); }); 
+        passEl.addEventListener('keyup', function(e){ updateStrength((e && e.target && e.target.value) || ''); }); 
+        passEl.addEventListener('change', function(e){ updateStrength((e && e.target && e.target.value) || ''); }); 
+      }
+
+      if(submitBtn){
+        submitBtn.addEventListener('click', async function(e){
+          e.preventDefault();
+          const email = (emailEl||{}).value || '';
+          const newPassword = (passEl||{}).value || '';
+          if(!email || !newPassword){ if(errEl){ errEl.textContent='Completa correo y nueva contraseña'; errEl.classList.remove('hidden'); } return; }
+          // Validación básica de formato email
+          if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ if(errEl){ errEl.textContent='Correo inválido'; errEl.classList.remove('hidden'); } return; }
+          
+          // Validar fortaleza de contraseña
+          const errs = [];
+          if(newPassword.length < 8) errs.push('Mínimo 8 caracteres');
+          if(!/[a-z]/.test(newPassword)) errs.push('Al menos 1 letra minúscula');
+          if(!/[A-Z]/.test(newPassword)) errs.push('Al menos 1 letra mayúscula');
+          if(!/[0-9]/.test(newPassword)) errs.push('Al menos 1 número');
+          if(!/[^A-Za-z0-9]/.test(newPassword)) errs.push('Al menos 1 carácter especial (!@#$%^&*)');
+          if(errs.length){ if(errEl){ errEl.textContent = '❌ La nueva contraseña no cumple los requisitos:\\n\\n' + errs.join('\\n'); errEl.classList.remove('hidden'); } return; }
+          
+          // RN: enviar a contenedor, Web: fetch directo
+          try{
+            if(window.ReactNativeWebView && window.ReactNativeWebView.postMessage){
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type:'reset_password', payload:{ email, newPassword } }));
+            } else {
+              const resp = await fetch('http://localhost:4001/foodloop/users/reset-password', {
+                method: 'POST', headers: { 'Content-Type':'application/json','Accept':'application/json' }, body: JSON.stringify({ email, newPassword })
+              });
+              const data = await resp.json();
+              if(!resp.ok){ throw new Error(data.message || 'No se pudo actualizar la contraseña'); }
+              closeModal();
+              // Feedback ligero
+              alert('Contraseña actualizada. Ahora puedes iniciar sesión.');
+            }
+          }catch(err){ if(errEl){ errEl.textContent = (err && err.message) || 'Error al actualizar la contraseña'; errEl.classList.remove('hidden'); } }
+        });
+      }
+    })();
   </script>
 </body>
 </html>`;
@@ -364,6 +502,18 @@ export default function LoginScreen() {
             } else if (data?.type === 'login' && data.credentials) {
               // Manejar petición de login desde el WebView
               handleLogin(data.credentials);
+            } else if (data?.type === 'reset_password' && data.payload) {
+              // Manejar reset de contraseña en RN
+              const payload = data.payload as { email: string; newPassword: string };
+              (async () => {
+                const res = await resetPassword(payload);
+                const js = res.success
+                  ? `(() => { const m=document.getElementById('resetModal'); if(m){ m.style.display='none'; } })(); true;`
+                  : `(() => { const e=document.getElementById('resetError'); if(e){ e.textContent=${JSON.stringify(res.message || 'No se pudo actualizar la contraseña')}; e.classList.remove('hidden'); } })(); true;`;
+                if (webViewRef.current) {
+                  webViewRef.current.injectJavaScript(js);
+                }
+              })();
             }
           } catch (error) {
             console.error('Error procesando mensaje del WebView:', error);
