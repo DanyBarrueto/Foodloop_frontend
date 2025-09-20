@@ -123,7 +123,18 @@ const html = `<!DOCTYPE html>
 				reportes: [ { id:501, reportante:'Usuario 23', asunto:'Publicación duplicada', estado:'pending', fecha:'2025-09-09' }, { id:502, reportante:'Usuario 17', asunto:'Contenido inapropiado', estado:'resolved', fecha:'2025-09-11' } ]
 			}};
 
-			function formatDate(iso){ try { return new Date(iso).toLocaleDateString('es-ES'); } catch(e){ return iso; } }
+			function formatDate(val){
+				try{
+					if(!val) return '';
+					var s = String(val);
+					// Si inicia con YYYY-MM-DD (con o sin hora/zona), formatear sin crear Date para evitar desfases por zona horaria
+					var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+					if(m){ return m[3]+'/'+m[2]+'/'+m[1]; }
+					var d = new Date(s);
+					if(!isNaN(d.getTime())){ return d.toLocaleDateString('es-ES'); }
+					return s;
+				} catch(e){ return String(val||''); }
+			}
 
 			// Escapar caracteres peligrosos al inyectar en HTML
 			function escapeHtml(str){
@@ -234,7 +245,7 @@ const html = `<!DOCTYPE html>
 					'<td class="px-3 py-2 hidden sm:table-cell">'+(p.categoriaNombre||'')+'</td>'+
 					'<td class="px-3 py-2">'+(p.tipo||'')+'</td>'+
 					'<td class="px-3 py-2">'+(p.cantidad!=null?p.cantidad:'')+'</td>'+
-					'<td class="px-3 py-2">'+((p.fecha && String(p.fecha).slice(0,10)) || '')+'</td>'+
+						'<td class="px-3 py-2">'+(p.fecha ? String(p.fecha).slice(0,10) : '')+'</td>'+            
 					'<td class="px-3 py-2">'+(p.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td>'+
 					'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
 					'<button class="admin-btn-secondary" data-action="edit" data-tipo="publicaciones" data-id="'+p.id+'">✏️ Editar</button>'+
@@ -263,7 +274,7 @@ const html = `<!DOCTYPE html>
 																var beneficiarioNombre = t.beneficiarioNombre || '';
 												var estNum = Number(t.estado);
 												var estBadge = (estNum===1) ? '<span class="admin-badge-active">Activo</span>' : '<span class="admin-badge-inactive">Inactivo</span>';
-												var fecha = t.fecha ? formatDate(t.fecha) : '';
+												var fecha = t.fecha ? String(t.fecha).slice(0,10) : '';
 												return '<tr>'+
 													'<td class="px-3 py-2">'+id+'</td>'+
 													'<td class="px-3 py-2">'+titulo+'</td>'+
@@ -274,20 +285,45 @@ const html = `<!DOCTYPE html>
 													'<td class="px-3 py-2">'+fecha+'</td>'+
 													'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
 														'<button class="admin-btn-secondary" data-action="edit" data-tipo="transacciones" data-id="'+id+'">✏️ Editar</button>'+
-														'<button class="admin-btn-danger" data-action="delete" data-tipo="transacciones" data-id="'+id+'">🗑️ Eliminar</button>'+
+														'<button class="admin-btn-warning" data-action="toggle-transaction" data-id="'+id+'">'+(estNum===1?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
 													'</div></td>'+
 												'</tr>';
 										}).join('')+
 										'</tbody></table></div></div>';
 								} else if(state.activeTab==='reportes'){
-					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📝 Gestión de Reportes</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="reportes">➕ Nuevo Reporte</button></div>'+
-					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Reportante</th><th>Asunto</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.reportes.map(r=>'<tr><td>'+r.id+'</td><td>'+r.reportante+'</td><td>'+r.asunto+'</td><td>'+(r.estado==='pending'?'<span class="admin-badge-pending">Pendiente</span>':'<span class="admin-badge-resolved">Resuelto</span>')+'</td><td>'+formatDate(r.fecha)+'</td><td class="flex flex-wrap gap-2">'+
-					'<button class="admin-btn-secondary" data-action="edit" data-tipo="reportes" data-id="'+r.id+'">✏️ Editar</button>'+
-					'<button class="admin-btn-danger" data-action="delete" data-tipo="reportes" data-id="'+r.id+'">🗑️ Eliminar</button>'+
-					'</td></tr>').join('')+
-					'</tbody></table></div></div>';
+									html = '<div class="admin-table-container">'+
+									'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📝 Gestión de Reportes</h2></div>'+
+									'<div class="overflow-x-auto"><table class="admin-table w-full text-sm md:text-base"><thead><tr>'+ 
+									'<th class="px-3 py-2">ID</th>'+ 
+									'<th class="px-3 py-2">Reportante</th>'+ 
+									'<th class="px-3 py-2">Publicación</th>'+ 
+									'<th class="px-3 py-2">Descripción</th>'+ 
+									'<th class="px-3 py-2">Estado</th>'+ 
+									'<th class="px-3 py-2">Fecha</th>'+ 
+									'<th class="px-3 py-2">Acciones</th>'+ 
+									'</tr></thead><tbody>'+
+									(state.data.reportes||[]).map(function(r){
+										var id = r.id;
+										var reportante = r.reportanteNombre || '';
+										var publicacion = r.publicacionTitulo || '';
+										var desc = r.descripcion || '';
+										var estNum = Number(r.estado);
+										var estBadge = (estNum===1) ? '<span class="admin-badge-active">Activo</span>' : '<span class="admin-badge-inactive">Inactivo</span>';
+										var fecha = r.fecha ? String(r.fecha).slice(0,10) : '';
+										return '<tr>'+ 
+										'<td class="px-3 py-2">'+id+'</td>'+ 
+										'<td class="px-3 py-2">'+reportante+'</td>'+ 
+										'<td class="px-3 py-2">'+publicacion+'</td>'+ 
+										'<td class="px-3 py-2">'+desc+'</td>'+ 
+										'<td class="px-3 py-2">'+estBadge+'</td>'+ 
+										'<td class="px-3 py-2">'+fecha+'</td>'+ 
+										'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
+											'<button class="admin-btn-secondary" data-action="edit" data-tipo="reportes" data-id="'+id+'">✏️ Editar</button>'+ 
+											'<button class="admin-btn-warning" data-action="toggle-reporte" data-id="'+id+'">'+(estNum===1?'⏸️ Desactivar':'▶️ Activar')+'</button>'+ 
+										'</div></td>'+ 
+										'</tr>';
+									}).join('')+
+									'</tbody></table></div></div>';
 				}
 				 c.innerHTML = html;
 			}
@@ -340,9 +376,49 @@ const html = `<!DOCTYPE html>
 										var pubId = (dataT.publicacion_id || dataT.publicacionId || (dataT.publicacion && (dataT.publicacion.id || dataT.publicacion.id_publicacion)) || null);
 										var donId = (dataT.donante_vendedor_id || dataT.donanteVendedorId || (dataT.donante && (dataT.donante.id || dataT.donante.id_usuario)) || null);
 										var benId = (dataT.beneficiario_comprador_id || dataT.beneficiarioCompradorId || (dataT.beneficiario && (dataT.beneficiario.id || dataT.beneficiario.id_usuario)) || null);
-										var fecha = (dataT.fecha_transaccion || dataT.fecha || dataT.fechaTransaccion || '') || '';
+										var fechaRaw = (dataT.fecha_transaccion || dataT.fecha || dataT.fechaTransaccion || '') || '';
+										var fecha = '';
+										try{
+											if(fechaRaw){
+												var s = String(fechaRaw);
+												var m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+												if(m){ fecha = m[1]; }
+												else { var _d=new Date(fechaRaw); if(!isNaN(_d.getTime())){ fecha=_d.toISOString().slice(0,10); } }
+											}
+										} catch(_){ }
 										const mappedT = { id: (dataT.id_transaccion||dataT.id), publicacionId: pubId, donanteId: donId, beneficiarioId: benId, fecha: fecha, estado: Number(dataT.estado) };
 										if (idxT>-1) { arrT[idxT] = { ...arrT[idxT], ...mappedT }; }
+									}
+								}
+							}
+						} catch(_){ /* noop */ }
+					} else if (tipo==='reportes') {
+						await fetchUsersList();
+						await fetchPublicacionesList();
+						try{
+							if (id!=null && AUTH_TOKEN) {
+								const resR = await fetch(API_BASE_URL + '/reportes/' + id, { headers: { 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json' } });
+								if (resR.ok) {
+									const dataR = await resR.json();
+									if (dataR) {
+										const arrR = state.data.reportes || [];
+										const idxR = arrR.findIndex(function(x){ return x && x.id===id; });
+										var repId = (dataR.reportante_id || dataR.reportanteId || (dataR.reportante && (dataR.reportante.id || dataR.reportante.id_usuario)) || null);
+										var pubId = (dataR.publicacion_id || dataR.publicacionId || (dataR.publicacion && (dataR.publicacion.id || dataR.publicacion.id_publicacion)) || null);
+										var desc = (dataR.descripcion || '');
+										var est = Number(dataR && dataR.estado);
+										var fechaRaw = (dataR.fecha_reporte || dataR.fechaReporte || dataR.fecha || '') || '';
+										var fecha = '';
+										try{
+											if(fechaRaw){
+												var s = String(fechaRaw);
+												var m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+												if(m){ fecha = m[1]; }
+												else { var _d=new Date(fechaRaw); if(!isNaN(_d.getTime())){ fecha=_d.toISOString().slice(0,10); } }
+											}
+										} catch(_){ }
+										const mappedR = { id: (dataR.id_reporte||dataR.id), reportanteId: repId, publicacionId: pubId, descripcion: desc, estado: est, fecha: fecha };
+										if (idxR>-1) { arrR[idxR] = { ...arrR[idxR], ...mappedR }; }
 									}
 								}
 							}
@@ -495,11 +571,23 @@ const html = `<!DOCTYPE html>
 					'</select></div>'+
 					'<div class="admin-form-group"><label class="admin-form-label">Fecha</label><input id="f_fecha" type="date" class="admin-form-input" value="'+fechaVal+'" /></div>';
 				} else if(t==='reportes'){
-					const r = id? data.reportes.find(x=>x.id===id) : { reportante:'', asunto:'', estado:'pending', fecha: new Date().toISOString().slice(0,10) };
-					fields = '<div class="admin-form-group"><label class="admin-form-label">Reportante</label><input id="f_reportante" class="admin-form-input" value="'+(r.reportante||'')+'" /></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Asunto</label><input id="f_asunto" class="admin-form-input" value="'+(r.asunto||'')+'" /></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Estado</label><select id="f_estado" class="admin-form-select"><option '+(r.estado==='pending'?'selected':'')+'>pending</option><option '+(r.estado==='resolved'?'selected':'')+'>resolved</option></select></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Fecha</label><input id="f_fecha" type="date" class="admin-form-input" value="'+(r.fecha||'')+'" /></div>';
+					const r = id? data.reportes.find(function(x){ return x.id===id; }) : { reportanteId:null, publicacionId:null, descripcion:'', estado:1, fecha: new Date().toISOString().slice(0,10) };
+					var fechaVal = (r && r.fecha) ? String(r.fecha).slice(0,10) : new Date().toISOString().slice(0,10);
+					fields = ''+
+					'<div class="admin-form-group"><label class="admin-form-label">Reportante</label>'+
+					'<select id="f_reportanteId" class="admin-form-select">'+
+					(data.usuarios||[]).map(function(u){ return '<option value="'+u.id+'" '+((r && r.reportanteId===u.id)?'selected':'')+'>'+(u.nombre||('Usuario #'+u.id))+'</option>'; }).join('')+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Publicación</label>'+
+					'<select id="f_publicacionId" class="admin-form-select">'+
+					(data.publicaciones||[]).map(function(p){ return '<option value="'+p.id+'" '+((r && r.publicacionId===p.id)?'selected':'')+'>'+(p.titulo||('Publicación #'+p.id))+'</option>'; }).join('')+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Descripción</label><textarea id="f_descripcion" class="admin-form-textarea">'+(r.descripcion||'')+'</textarea></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Estado</label><select id="f_estado" class="admin-form-select">'+
+					'<option value="1" '+(Number(r.estado)===1?'selected':'')+'>Activo</option>'+
+					'<option value="0" '+(Number(r.estado)!==1?'selected':'')+'>Inactivo</option>'+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Fecha de reporte</label><input id="f_fecha" type="date" class="admin-form-input" value="'+fechaVal+'" /></div>';
 				}
 				document.getElementById('modalFields').innerHTML = fields;
 				// Enfocar el primer campo para evitar que el botón de cerrar capture la primera pulsación
@@ -653,7 +741,7 @@ const html = `<!DOCTYPE html>
 					if(!v.beneficiarioCompradorId){ showPopup('Selecciona el beneficiario/comprador.'); return; }
 					try{
 						if(AUTH_TOKEN && id){
-							const payload = { publicacionId: v.publicacionId, donanteVendedorId: v.donanteVendedorId, beneficiarioCompradorId: v.beneficiarioCompradorId, fechaTransaccion: v.fechaTransaccion };
+							const payload = { publicacionId: v.publicacionId, donanteVendedorId: v.donanteVendedorId, beneficiarioCompradorId: v.beneficiarioCompradorId, fechaTransaccion: (v.fechaTransaccion || undefined) };
 							const res = await fetch(API_BASE_URL + '/transacciones/' + id, { method:'PUT', headers:{ 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
 							if(!res.ok){ let msg=''; try{ const j=await res.json(); msg=j && (j.message||j.error)||''; }catch(_){ } showPopup(msg||'No se pudo guardar la transacción'); return; }
 							// refrescar
@@ -666,8 +754,31 @@ const html = `<!DOCTYPE html>
 					else { d.transacciones.push({ id: nextId(d.transacciones), publicacionId: v.publicacionId, donanteId: v.donanteVendedorId, beneficiarioId: v.beneficiarioCompradorId, fecha: v.fechaTransaccion }); }
 				}
 				else if(t==='reportes'){
-					const v = { reportante:qs('f_reportante').value, asunto:qs('f_asunto').value, estado:qs('f_estado').value, fecha:qs('f_fecha').value };
-					if(id){ const i=d.reportes.findIndex(x=>x.id===id); d.reportes[i]={ ...d.reportes[i], ...v }; } else { d.reportes.push({ id: nextId(d.reportes), ...v }); }
+					// Leer valores del formulario acorde a la tabla
+					const v = {
+						reportanteId: Number((qs('f_reportanteId') && qs('f_reportanteId').value) || 0),
+						publicacionId: Number((qs('f_publicacionId') && qs('f_publicacionId').value) || 0),
+						descripcion: String((qs('f_descripcion') && qs('f_descripcion').value) || '').trim(),
+						estado: Number((qs('f_estado') && qs('f_estado').value) || 1),
+						fechaReporte: String(qs('f_fecha').value||'').slice(0,10)
+					};
+					if(!v.reportanteId){ showPopup('Selecciona el reportante.'); return; }
+					if(!v.publicacionId){ showPopup('Selecciona la publicación.'); return; }
+					if(!v.descripcion){ showPopup('La descripción es obligatoria.'); return; }
+					try{
+						if(AUTH_TOKEN && id){
+							// Enviar con hora 12:00 para evitar desfaces por zona horaria al serializar a UTC
+							const payload = { reportanteId: v.reportanteId, publicacionId: v.publicacionId, descripcion: v.descripcion, estado: v.estado, fechaReporte: (v.fechaReporte || undefined) };
+							const res = await fetch(API_BASE_URL + '/reportes/' + id, { method:'PUT', headers:{ 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+							if(!res.ok){ let msg=''; try{ const j=await res.json(); msg=j && (j.message||j.error)||''; }catch(_){ } showPopup(msg||'No se pudo guardar el reporte'); return; }
+							await fetchReportesList();
+							await fetchReportesPendientes();
+							closeEdit(); renderContent(); return;
+						}
+					}catch(_){ showPopup('Ocurrió un error al guardar reporte'); return; }
+					// Sin token, actualiza localmente (demo)
+					if(id){ const i=d.reportes.findIndex(function(x){ return x.id===id; }); if(i>-1){ d.reportes[i] = { ...d.reportes[i], reportanteId: v.reportanteId, publicacionId: v.publicacionId, descripcion: v.descripcion, estado: v.estado, fecha: v.fechaReporte }; } }
+					else { d.reportes.push({ id: nextId(d.reportes), reportanteId: v.reportanteId, publicacionId: v.publicacionId, descripcion: v.descripcion, estado: v.estado, fecha: v.fechaReporte }); }
 				}
 				closeEdit(); updateStats(); renderContent();
 			}
@@ -722,6 +833,25 @@ const html = `<!DOCTYPE html>
 				fetchPublicacionesList();
 			}
 
+			async function toggleTransactionStatus(id){
+				const t = state.data.transacciones.find(function(x){ return x.id===id; });
+				if(!t) return;
+				const isActive = (Number(t.estado)===1);
+				try{
+					if(AUTH_TOKEN){
+						await fetch(API_BASE_URL + '/transacciones/' + id, {
+							method: 'PUT',
+							headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+							body: JSON.stringify({ estado: isActive ? 0 : 1 })
+						});
+					}
+				} catch(_){ /* noop */ }
+				// Actualiza UI local y refresca desde backend
+				t.estado = isActive ? 0 : 1;
+				renderContent();
+				fetchTransaccionesList();
+			}
+
 			function updateStats(){
 				const d = state.data;
 				const usuariosTotales = (state.statsOverride && typeof state.statsOverride.usuariosTotales === 'number') ? state.statsOverride.usuariosTotales : d.usuarios.length;
@@ -748,6 +878,68 @@ const html = `<!DOCTYPE html>
 					const el = document.querySelector('#stats .admin-stats-card:nth-child(4) .text-3xl');
 					if(el) el.textContent = String(pending);
 				} catch(e){ /* noop */ }
+			}
+
+			async function toggleReporteStatus(id){
+				const r = (state.data.reportes||[]).find(function(x){ return x.id===id; });
+				if(!r) return;
+				const isActive = (Number(r.estado)===1);
+				try{
+					if(AUTH_TOKEN){
+						await fetch(API_BASE_URL + '/reportes/' + id, {
+							method: 'PUT',
+							headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+							body: JSON.stringify({ estado: isActive ? 0 : 1 })
+						});
+					}
+				} catch(_){ /* noop */ }
+				// Actualiza UI local y refresca
+				r.estado = isActive ? 0 : 1;
+				renderContent();
+				fetchReportesList();
+				fetchReportesPendientes();
+			}
+
+			// Lista de reportes mapeada a UI: id, reportanteNombre, publicacionTitulo, descripcion, estado, fecha
+			async function fetchReportesList(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const [rRes, uRes, pRes] = await Promise.all([
+						fetch(API_BASE_URL + '/reportes', { headers: { 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json' } }),
+						fetch(API_BASE_URL + '/users', { headers: { 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json' } }),
+						fetch(API_BASE_URL + '/publicaciones', { headers: { 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json' } })
+					]);
+					if(!rRes.ok){ return; }
+					const rData = await rRes.json();
+					const uData = uRes.ok ? await uRes.json() : [];
+					const pData = pRes.ok ? await pRes.json() : [];
+					var userMap = {}; try{ (uData||[]).forEach(function(u){ var id=(u && (u.id_usuario||u.id)); if(id!=null){ userMap[id] = (u.nombre_entidad || u.nombreEntidad || u.nombre || ('Usuario #'+id)); } }); }catch(_){ }
+					var pubMap = {}; try{ (pData||[]).forEach(function(p){ var id=(p && (p.id_publicacion||p.id)); if(id!=null){ pubMap[id] = (p.titulo || ('Publicación #'+id)); } }); }catch(_){ }
+					if(Array.isArray(rData)){
+						state.data.reportes = rData.map(function(r){
+							var id = (r && (r.id_reporte || r.id)) || 0;
+							var repId = (r && (r.reportante_id || r.reportanteId || (r.reportante && (r.reportante.id || r.reportante.id_usuario))));
+							var pubId = (r && (r.publicacion_id || r.publicacionId || (r.publicacion && (r.publicacion.id || r.publicacion.id_publicacion))));
+							var nombre = (repId!=null && userMap[repId]) ? userMap[repId] : ((r && r.reportante && (r.reportante.nombre_entidad || r.reportante.nombreEntidad)) || '');
+							var titulo = (pubId!=null && pubMap[pubId]) ? pubMap[pubId] : ((r && r.publicacion && r.publicacion.titulo) || '');
+							var desc = (r && r.descripcion) || '';
+							var est = Number(r && r.estado);
+							var fechaRaw = (r && (r.fecha_reporte || r.fecha || r.fechaReporte)) || '';
+							var fecha = '';
+							try{
+								if(fechaRaw){
+									// Si viene como 'YYYY-MM-DD...' quedarnos sólo con la parte de fecha
+									var s = String(fechaRaw);
+									var m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+									if(m){ fecha = m[1]; }
+									else { var _d=new Date(fechaRaw); if(!isNaN(_d.getTime())){ fecha=_d.toISOString().slice(0,10); } }
+								}
+							} catch(_){ }
+							return { id: id, reportanteNombre: nombre, publicacionTitulo: titulo, descripcion: desc, estado: est, fecha: fecha };
+						}).sort(function(a,b){ return (a.id||0)-(b.id||0); });
+						if(state.activeTab==='reportes'){ renderContent(); }
+					}
+				}catch(_){ }
 			}
 
 			async function fetchTransaccionesCount(){
@@ -796,7 +988,16 @@ const html = `<!DOCTYPE html>
 							var benId = (t && (t.beneficiario_comprador_id || t.beneficiarioCompradorId || (t.beneficiario && (t.beneficiario.id || t.beneficiario.id_usuario))));
 							var donName = (donId!=null && userMap[donId]) ? userMap[donId] : ((t && t.donante && (t.donante.nombre_entidad || t.donante.nombreEntidad)) || '');
 							var benName = (benId!=null && userMap[benId]) ? userMap[benId] : ((t && t.beneficiario && (t.beneficiario.nombre_entidad || t.beneficiario.nombreEntidad)) || '');
-							var fecha = (t && (t.fecha_transaccion || t.fecha || t.fechaTransaccion)) || '';
+							var fechaRaw = (t && (t.fecha_transaccion || t.fecha || t.fechaTransaccion)) || '';
+							var fecha = '';
+							try{
+								if(fechaRaw){
+									var s = String(fechaRaw);
+									var m = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+									if(m){ fecha = m[1]; }
+									else { var _d=new Date(fechaRaw); if(!isNaN(_d.getTime())){ fecha=_d.toISOString().slice(0,10); } }
+								}
+							} catch(_){ }
 							return { id: id, publicacionId: pubId, publicacionTitulo: pubInfo.titulo, publicacionPrecio: pubInfo.precio, estado: estado, fecha: fecha, donanteNombre: donName, beneficiarioNombre: benName };
 						}).sort(function(a,b){ return (a.id||0)-(b.id||0); });
 						if(state.activeTab==='transacciones'){ renderContent(); }
@@ -956,6 +1157,7 @@ const html = `<!DOCTYPE html>
 				if(tab==='categorias'){ fetchCategoriesList(); }
 				if(tab==='publicaciones'){ fetchCategoriesList(); fetchPublicacionesList(); }
 				if(tab==='transacciones'){ fetchTransaccionesList(); }
+				if(tab==='reportes'){ fetchReportesList(); }
 			}
 
 			function init(){
@@ -968,6 +1170,7 @@ const html = `<!DOCTYPE html>
 				fetchTransaccionesCount();
 				fetchTransaccionesList();
 				fetchReportesPendientes();
+				fetchReportesList();
 				fetchCategoriesList();
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
@@ -992,6 +1195,8 @@ const html = `<!DOCTYPE html>
 						case 'edit': if(tipo && id!=null) openEdit(tipo, id); break;
 						case 'toggle-user': if(id!=null) toggleUserStatus(id); break;
 						case 'toggle-publication': if(id!=null) togglePublicationStatus(id); break;
+						case 'toggle-transaction': if(id!=null) toggleTransactionStatus(id); break;
+						case 'toggle-reporte': if(id!=null) toggleReporteStatus(id); break;
 							case 'toggle-category': if(id!=null) toggleCategoryStatus(id); break;
 						case 'delete':
 							if(!tipo || id==null) break;
@@ -1053,6 +1258,8 @@ const html = `<!DOCTYPE html>
 						case 'edit': if(tipo && id!=null) openEdit(tipo, id); break;
 						case 'toggle-user': if(id!=null) toggleUserStatus(id); break;
 						case 'toggle-publication': if(id!=null) togglePublicationStatus(id); break;
+							case 'toggle-transaction': if(id!=null) toggleTransactionStatus(id); break;
+							case 'toggle-reporte': if(id!=null) toggleReporteStatus(id); break;
 						case 'toggle-category': if(id!=null) toggleCategoryStatus(id); break;
 						case 'delete':
 							if(!tipo || id==null) break;
