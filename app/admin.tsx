@@ -242,16 +242,44 @@ const html = `<!DOCTYPE html>
 					'</div></td>'+
 					'</tr>'; }).join('')+
 					'</tbody></table></div></div>';
-				} else if(state.activeTab==='transacciones'){
-					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">💳 Gestión de Transacciones</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="transacciones">➕ Nueva Transacción</button></div>'+
-					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Usuario</th><th>Monto</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.transacciones.map(t=>'<tr><td>'+t.id+'</td><td>'+t.usuario+'</td><td>€ '+Number(t.monto).toFixed(2)+'</td><td>'+(t.estado==='pending'?'<span class="admin-badge-pending">Pendiente</span>':(t.estado==='completed'?'<span class="admin-badge-resolved">Completada</span>':'<span class="admin-badge-expired">Fallida</span>'))+'</td><td>'+formatDate(t.fecha)+'</td><td class="flex flex-wrap gap-2">'+
-					'<button class="admin-btn-secondary" data-action="edit" data-tipo="transacciones" data-id="'+t.id+'">✏️ Editar</button>'+
-					'<button class="admin-btn-danger" data-action="delete" data-tipo="transacciones" data-id="'+t.id+'">🗑️ Eliminar</button>'+
-					'</td></tr>').join('')+
-					'</tbody></table></div></div>';
-				} else if(state.activeTab==='reportes'){
+												} else if(state.activeTab==='transacciones'){
+										html = '<div class="admin-table-container">'+
+										'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">💳 Gestión de Transacciones</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="transacciones">➕ Nueva Transacción</button></div>'+
+														'<div class="overflow-x-auto"><table class="admin-table w-full text-sm md:text-base"><thead><tr>'+
+														'<th class="px-3 py-2">ID</th>'+ // id_transaccion
+														'<th class="px-3 py-2">Publicación</th>'+ // título
+														'<th class="px-3 py-2">Donante/Vendedor</th>'+ // nombre donante/vendedor
+														'<th class="px-3 py-2">Beneficiario/Comprador</th>'+ // nombre beneficiario/comprador
+														'<th class="px-3 py-2">Precio</th>'+ // precio de la publicación
+														'<th class="px-3 py-2">Estado</th>'+ // 0 inactivo / 1 activo
+														'<th class="px-3 py-2">Fecha</th>'+ 
+														'<th class="px-3 py-2">Acciones</th>'+ 
+										'</tr></thead><tbody>'+
+										(state.data.transacciones||[]).map(function(t){
+												var id = t.id;
+												var titulo = t.publicacionTitulo || '';
+												var precio = (t.publicacionPrecio!=null ? Number(t.publicacionPrecio) : 0);
+																var donanteNombre = t.donanteNombre || '';
+																var beneficiarioNombre = t.beneficiarioNombre || '';
+												var estNum = Number(t.estado);
+												var estBadge = (estNum===1) ? '<span class="admin-badge-active">Activo</span>' : '<span class="admin-badge-inactive">Inactivo</span>';
+												var fecha = t.fecha ? formatDate(t.fecha) : '';
+												return '<tr>'+
+													'<td class="px-3 py-2">'+id+'</td>'+
+													'<td class="px-3 py-2">'+titulo+'</td>'+
+																	'<td class="px-3 py-2">'+donanteNombre+'</td>'+
+																	'<td class="px-3 py-2">'+beneficiarioNombre+'</td>'+
+													'<td class="px-3 py-2">€ '+precio.toFixed(2)+'</td>'+
+													'<td class="px-3 py-2">'+estBadge+'</td>'+
+													'<td class="px-3 py-2">'+fecha+'</td>'+
+													'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
+														'<button class="admin-btn-secondary" data-action="edit" data-tipo="transacciones" data-id="'+id+'">✏️ Editar</button>'+
+														'<button class="admin-btn-danger" data-action="delete" data-tipo="transacciones" data-id="'+id+'">🗑️ Eliminar</button>'+
+													'</div></td>'+
+												'</tr>';
+										}).join('')+
+										'</tbody></table></div></div>';
+								} else if(state.activeTab==='reportes'){
 					html = '<div class="admin-table-container">'+
 					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📝 Gestión de Reportes</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="reportes">➕ Nuevo Reporte</button></div>'+
 					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Reportante</th><th>Asunto</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+
@@ -293,6 +321,28 @@ const html = `<!DOCTYPE html>
 											categoriaId: (data.categoria_id || data.categoriaId || null)
 										};
 										if (idx>-1) { arr[idx] = { ...arr[idx], ...mapped }; }
+									}
+								}
+							}
+						} catch(_){ /* noop */ }
+					} else if (tipo==='transacciones') {
+						await fetchUsersList();
+						await fetchPublicacionesList();
+						// Intentar obtener el detalle de la transacción antes de abrir
+						try{
+							if (id!=null && AUTH_TOKEN) {
+								const resT = await fetch(API_BASE_URL + '/transacciones/' + id, { headers: { 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json' } });
+								if (resT.ok) {
+									const dataT = await resT.json();
+									if (dataT) {
+										const arrT = state.data.transacciones || [];
+										const idxT = arrT.findIndex(function(x){ return x && x.id===id; });
+										var pubId = (dataT.publicacion_id || dataT.publicacionId || (dataT.publicacion && (dataT.publicacion.id || dataT.publicacion.id_publicacion)) || null);
+										var donId = (dataT.donante_vendedor_id || dataT.donanteVendedorId || (dataT.donante && (dataT.donante.id || dataT.donante.id_usuario)) || null);
+										var benId = (dataT.beneficiario_comprador_id || dataT.beneficiarioCompradorId || (dataT.beneficiario && (dataT.beneficiario.id || dataT.beneficiario.id_usuario)) || null);
+										var fecha = (dataT.fecha_transaccion || dataT.fecha || dataT.fechaTransaccion || '') || '';
+										const mappedT = { id: (dataT.id_transaccion||dataT.id), publicacionId: pubId, donanteId: donId, beneficiarioId: benId, fecha: fecha, estado: Number(dataT.estado) };
+										if (idxT>-1) { arrT[idxT] = { ...arrT[idxT], ...mappedT }; }
 									}
 								}
 							}
@@ -428,11 +478,22 @@ const html = `<!DOCTYPE html>
 					'<div class="admin-form-group"><label class="admin-form-label">Precio (€)</label><input id="f_precio" type="number" step="0.01" class="admin-form-input" value="'+(p.precio!=null?p.precio:0)+'" /></div>'+
 					'<div class="admin-form-group"><label class="admin-form-label">Fecha de caducidad</label><input id="f_fecha" type="date" class="admin-form-input" value="'+fechaVal+'" /></div>';
 				} else if(t==='transacciones'){
-					const tnx = id? data.transacciones.find(x=>x.id===id) : { usuario:'', monto:0, estado:'pending', fecha: new Date().toISOString().slice(0,10) };
-					fields = '<div class="admin-form-group"><label class="admin-form-label">Usuario</label><input id="f_usuario" class="admin-form-input" value="'+(tnx.usuario||'')+'" /></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Monto (€)</label><input id="f_monto" type="number" step="0.01" class="admin-form-input" value="'+(tnx.monto||0)+'" /></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Estado</label><select id="f_estado" class="admin-form-select"><option '+(tnx.estado==='pending'?'selected':'')+'>pending</option><option '+(tnx.estado==='completed'?'selected':'')+'>completed</option><option '+(tnx.estado==='failed'?'selected':'')+'>failed</option></select></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Fecha</label><input id="f_fecha" type="date" class="admin-form-input" value="'+(tnx.fecha||'')+'" /></div>';
+					const tnx = id? data.transacciones.find(function(x){ return x.id===id; }) : { publicacionId:null, donanteId:null, beneficiarioId:null, fecha: new Date().toISOString().slice(0,10) };
+					var fechaVal = (tnx && tnx.fecha) ? String(tnx.fecha).slice(0,10) : new Date().toISOString().slice(0,10);
+					fields = ''+
+					'<div class="admin-form-group"><label class="admin-form-label">Publicación</label>'+
+					'<select id="f_publicacionId" class="admin-form-select">'+
+					(data.publicaciones||[]).map(function(p){ return '<option value="'+p.id+'" '+((tnx && tnx.publicacionId===p.id)?'selected':'')+'>'+(p.titulo||('Publicación #'+p.id))+'</option>'; }).join('')+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Donante/Vendedor</label>'+
+					'<select id="f_donanteId" class="admin-form-select">'+
+					(data.usuarios||[]).map(function(u){ return '<option value="'+u.id+'" '+((tnx && tnx.donanteId===u.id)?'selected':'')+'>'+(u.nombre||('Usuario #'+u.id))+'</option>'; }).join('')+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Beneficiario/Comprador</label>'+
+					'<select id="f_beneficiarioId" class="admin-form-select">'+
+					(data.usuarios||[]).map(function(u){ return '<option value="'+u.id+'" '+((tnx && tnx.beneficiarioId===u.id)?'selected':'')+'>'+(u.nombre||('Usuario #'+u.id))+'</option>'; }).join('')+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Fecha</label><input id="f_fecha" type="date" class="admin-form-input" value="'+fechaVal+'" /></div>';
 				} else if(t==='reportes'){
 					const r = id? data.reportes.find(x=>x.id===id) : { reportante:'', asunto:'', estado:'pending', fecha: new Date().toISOString().slice(0,10) };
 					fields = '<div class="admin-form-group"><label class="admin-form-label">Reportante</label><input id="f_reportante" class="admin-form-input" value="'+(r.reportante||'')+'" /></div>'+
@@ -579,8 +640,30 @@ const html = `<!DOCTYPE html>
 					else { d.publicaciones.push({ id: nextId(d.publicaciones), ...v, fecha: v.fechaCaducidad }); }
 				}
 				else if(t==='transacciones'){
-					const v = { usuario:qs('f_usuario').value, monto:Number(qs('f_monto').value||0), estado:qs('f_estado').value, fecha:qs('f_fecha').value };
-					if(id){ const i=d.transacciones.findIndex(x=>x.id===id); d.transacciones[i]={ ...d.transacciones[i], ...v }; } else { d.transacciones.push({ id: nextId(d.transacciones), ...v }); }
+					// Leer valores del formulario
+					const v = {
+						publicacionId: Number((qs('f_publicacionId') && qs('f_publicacionId').value) || 0),
+						donanteVendedorId: Number((qs('f_donanteId') && qs('f_donanteId').value) || 0),
+						beneficiarioCompradorId: Number((qs('f_beneficiarioId') && qs('f_beneficiarioId').value) || 0),
+						fechaTransaccion: String(qs('f_fecha').value||'').slice(0,10)
+					};
+					// Validaciones mínimas
+					if(!v.publicacionId){ showPopup('Selecciona una publicación.'); return; }
+					if(!v.donanteVendedorId){ showPopup('Selecciona el donante/vendedor.'); return; }
+					if(!v.beneficiarioCompradorId){ showPopup('Selecciona el beneficiario/comprador.'); return; }
+					try{
+						if(AUTH_TOKEN && id){
+							const payload = { publicacionId: v.publicacionId, donanteVendedorId: v.donanteVendedorId, beneficiarioCompradorId: v.beneficiarioCompradorId, fechaTransaccion: v.fechaTransaccion };
+							const res = await fetch(API_BASE_URL + '/transacciones/' + id, { method:'PUT', headers:{ 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+							if(!res.ok){ let msg=''; try{ const j=await res.json(); msg=j && (j.message||j.error)||''; }catch(_){ } showPopup(msg||'No se pudo guardar la transacción'); return; }
+							// refrescar
+							await fetchTransaccionesList();
+							closeEdit(); renderContent(); return;
+						}
+					}catch(_){ showPopup('Ocurrió un error al guardar transacción'); return; }
+					// Sin token o sin id, actualizar localmente (modo demo)
+					if(id){ const i=d.transacciones.findIndex(function(x){ return x.id===id; }); if(i>-1){ d.transacciones[i] = { ...d.transacciones[i], publicacionId: v.publicacionId, donanteId: v.donanteVendedorId, beneficiarioId: v.beneficiarioCompradorId, fecha: v.fechaTransaccion }; } }
+					else { d.transacciones.push({ id: nextId(d.transacciones), publicacionId: v.publicacionId, donanteId: v.donanteVendedorId, beneficiarioId: v.beneficiarioCompradorId, fecha: v.fechaTransaccion }); }
 				}
 				else if(t==='reportes'){
 					const v = { reportante:qs('f_reportante').value, asunto:qs('f_asunto').value, estado:qs('f_estado').value, fecha:qs('f_fecha').value };
@@ -680,6 +763,45 @@ const html = `<!DOCTYPE html>
 					const el = document.querySelector('#stats .admin-stats-card:nth-child(3) .text-3xl');
 					if(el) el.textContent = String(count);
 				} catch(e){ /* noop */ }
+			}
+
+			// Carga y enriquece transacciones con título y precio de la publicación
+			async function fetchTransaccionesList(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const [tRes, pRes, uRes] = await Promise.all([
+						fetch(API_BASE_URL + '/transacciones', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } }),
+						fetch(API_BASE_URL + '/publicaciones', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } }),
+						fetch(API_BASE_URL + '/users', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } })
+					]);
+					if(!tRes.ok){ return; }
+					const tData = await tRes.json();
+					const pData = pRes.ok ? await pRes.json() : [];
+					const uData = uRes.ok ? await uRes.json() : [];
+					var pubMap = {};
+					try{
+						(pData || []).forEach(function(p){ var id=(p && (p.id_publicacion||p.id)); if(id!=null){ pubMap[id] = { titulo: p.titulo||'', precio: (p.precio!=null?p.precio:0) }; } });
+					}catch(_){ }
+					var userMap = {};
+					try{
+						(uData || []).forEach(function(u){ var id=(u && (u.id_usuario||u.id)); if(id!=null){ userMap[id] = (u.nombre_entidad || u.nombreEntidad || u.nombre || ('Usuario #'+id)); } });
+					}catch(_){ }
+					if(Array.isArray(tData)){
+						state.data.transacciones = tData.map(function(t){
+							var id = (t && (t.id_transaccion || t.id)) || 0;
+							var pubId = (t && (t.publicacion_id || t.publicacionId || (t.publicacion && (t.publicacion.id || t.publicacion.id_publicacion)))) || null;
+							var pubInfo = (pubId!=null && pubMap[pubId]) ? pubMap[pubId] : { titulo: (t && t.publicacion && t.publicacion.titulo) || '', precio: (t && t.publicacion && t.publicacion.precio) || 0 };
+							var estado = Number(t && t.estado);
+							var donId = (t && (t.donante_vendedor_id || t.donanteVendedorId || (t.donante && (t.donante.id || t.donante.id_usuario))));
+							var benId = (t && (t.beneficiario_comprador_id || t.beneficiarioCompradorId || (t.beneficiario && (t.beneficiario.id || t.beneficiario.id_usuario))));
+							var donName = (donId!=null && userMap[donId]) ? userMap[donId] : ((t && t.donante && (t.donante.nombre_entidad || t.donante.nombreEntidad)) || '');
+							var benName = (benId!=null && userMap[benId]) ? userMap[benId] : ((t && t.beneficiario && (t.beneficiario.nombre_entidad || t.beneficiario.nombreEntidad)) || '');
+							var fecha = (t && (t.fecha_transaccion || t.fecha || t.fechaTransaccion)) || '';
+							return { id: id, publicacionId: pubId, publicacionTitulo: pubInfo.titulo, publicacionPrecio: pubInfo.precio, estado: estado, fecha: fecha, donanteNombre: donName, beneficiarioNombre: benName };
+						}).sort(function(a,b){ return (a.id||0)-(b.id||0); });
+						if(state.activeTab==='transacciones'){ renderContent(); }
+					}
+				}catch(_){ }
 			}
 
 			async function fetchPublicacionesActivas(){
@@ -827,7 +949,14 @@ const html = `<!DOCTYPE html>
 				fetchCategoriesList();
 			}
 
-			function setActiveTab(tab){ state.activeTab = tab; document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-tab')===tab)); renderContent(); if(tab==='categorias'){ fetchCategoriesList(); } if(tab==='publicaciones'){ fetchCategoriesList(); fetchPublicacionesList(); } }
+			function setActiveTab(tab){
+				state.activeTab = tab;
+				document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-tab')===tab));
+				renderContent();
+				if(tab==='categorias'){ fetchCategoriesList(); }
+				if(tab==='publicaciones'){ fetchCategoriesList(); fetchPublicacionesList(); }
+				if(tab==='transacciones'){ fetchTransaccionesList(); }
+			}
 
 			function init(){
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
@@ -837,6 +966,7 @@ const html = `<!DOCTYPE html>
 				fetchPublicacionesActivas();
 				fetchPublicacionesList();
 				fetchTransaccionesCount();
+				fetchTransaccionesList();
 				fetchReportesPendientes();
 				fetchCategoriesList();
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
