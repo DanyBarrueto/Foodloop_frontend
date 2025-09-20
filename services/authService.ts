@@ -84,18 +84,19 @@ export const loginUser = async (credentials: LoginRequest): Promise<LoginRespons
       };
     }
 
-    // Si el login es exitoso, guarda el token y datos del usuario
+    // Si el login es exitoso, normalizar y guardar token/usuario
+    const normalizedUser = data.user ? { ...data.user, estado: Number(data.user.estado) } : undefined;
     if (data.token) {
       await storage.setToken(data.token);
     }
-    if (data.user) {
-      await storage.setUserData(data.user);
+    if (normalizedUser) {
+      await storage.setUserData(normalizedUser);
     }
 
     return {
       success: true,
       token: data.token,
-      user: data.user,
+      user: normalizedUser,
       message: data.message || 'Login exitoso',
     };
 
@@ -209,17 +210,18 @@ export const registerUser = async (payload: RegisterRequest): Promise<RegisterRe
       };
     }
 
+    const normalizedUser = data.user ? { ...data.user, estado: Number(data.user.estado) } : undefined;
     if (data.token) {
       await storage.setToken(data.token);
     }
-    if (data.user) {
-      await storage.setUserData(data.user);
+    if (normalizedUser) {
+      await storage.setUserData(normalizedUser);
     }
 
     return {
       success: true,
       token: data.token,
-      user: data.user,
+      user: normalizedUser,
       message: data.message || 'Registro exitoso',
     };
   } catch (error) {

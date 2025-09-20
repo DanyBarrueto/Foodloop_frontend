@@ -237,9 +237,17 @@ const html = `<!DOCTYPE html>
           // Éxito en web: notificar al parent (iframe) para que guarde y navegue
           try {
             if (window.parent && window.parent !== window) {
-              window.parent.postMessage({ type: 'login_success', payload: data }, '*');
+              try { console.log('[WEB-IFRAME] Respuesta login data:', data); } catch(e) {}
+              const payload = {
+                token: (data && (data.token || (data.data && data.data.token))) || null,
+                user: (data && (data.user || data.usuario || (data.data && data.data.user))) || null,
+                email,
+              };
+              try { console.log('[WEB-IFRAME] Enviando payload al parent:', payload); } catch(e) {}
+              window.parent.postMessage({ type: 'login_success', payload }, '*');
             } else {
-              const path = data.user?.estado === 2 ? '/admin' : '/explorador';
+              const estado = Number(data.user?.estado);
+              const path = estado === 2 ? '/admin' : '/explorador';
               window.top && (window.top.location.href = path);
             }
           } catch {}
@@ -386,7 +394,10 @@ export default function LoginScreen() {
     (async () => {
       if (isAuthenticated) {
         const user = await storage.getUserData();
-        const path = user?.estado === 2 ? '/admin' : '/explorador';
+        console.log('DEBUG - Usuario almacenado:', user, 'Estado:', user?.estado, 'Tipo:', typeof user?.estado);
+        const estado = Number(user?.estado);
+        console.log('DEBUG - Estado convertido en useEffect:', estado, 'Ruta elegida:', estado === 2 ? '/admin' : '/explorador');
+        const path = estado === 2 ? '/admin' : '/explorador';
         router.replace(path as any);
       }
     })();
@@ -409,9 +420,10 @@ export default function LoginScreen() {
     try {
       const result = await loginUser(credentials);
       
-      if (result.success && result.user) {
+    if (result.success && result.user) {
         // Determinar la ruta según el estado del usuario
-  const path = result.user.estado === 2 ? '/admin' : '/explorador';
+  const estado = Number(result.user.estado);
+  const path = estado === 2 ? '/admin' : '/explorador';
   router.replace(path as any);
       } else {
         // Enviar error de vuelta al WebView
@@ -445,11 +457,33 @@ export default function LoginScreen() {
               const handler = async (event: MessageEvent) => {
                 try {
                   const data = event.data;
+                  try { console.log('[PARENT] Mensaje recibido:', data); } catch(e) {}
                   if (data && data.type === 'login_success' && data.payload) {
-                    const { token, user } = data.payload || {};
+                    let payload: any = data.payload;
+                    if (typeof payload === 'string') {
+                      try { payload = JSON.parse(payload); } catch(err) { try { console.warn('[PARENT] No se pudo parsear payload string:', err); } catch(e) {} }
+                    }
+                    const token = payload?.token || (payload?.data && payload.data.token);
+                    let user = payload?.user || payload?.usuario || (payload?.data && payload.data.user) || null;
+                    const email = payload?.email || payload?.correo || (user && (user.correo || user.email)) || null;
                     if (token) await storage.setToken(token);
+                    // Fallback: si no vino user pero tenemos token y email, consultar backend
+                    if (!user && token && email) {
+                      try {
+                        const resp = await fetch('http://localhost:4001/foodloop/users/email/' + encodeURIComponent(email), {
+                          method: 'GET',
+                          headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
+                        });
+                        const udata = await resp.json();
+                        if (resp.ok) { user = udata; }
+                      } catch (err) {
+                        try { console.warn('[PARENT] Fallback obtener usuario por email falló:', err); } catch(_) {}
+                      }
+                    }
                     if (user) await storage.setUserData(user);
-                    const path = user?.estado === 2 ? '/admin' : '/explorador';
+                    try { console.log('[PARENT] Estado recibido del usuario:', user?.estado, 'typeof:', typeof user?.estado); } catch(e) {}
+                    const estado = Number(user?.estado);
+                    const path = estado === 2 ? '/admin' : '/explorador';
                     router.replace(path as any);
                   }
                 } catch {}
