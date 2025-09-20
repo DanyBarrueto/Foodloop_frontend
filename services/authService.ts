@@ -26,6 +26,30 @@ export interface ApiError {
   statusCode?: number;
 }
 
+// Tipos de registro (ajustables a tu backend)
+export interface RegisterRequest {
+  nombreEntidad: string; // entityName
+  tipoEntidad: string;   // entityType
+  email: string;
+  telefono: string;      // phone
+  ciudad?: string;       // location (preferido)
+  ubicacion?: string;    // alias de ciudad
+  direccion: string;     // address
+  password: string;
+}
+
+export interface RegisterResponse {
+  success: boolean;
+  message?: string;
+  token?: string;
+  user?: {
+    id: string;
+    email: string;
+    estado: number;
+    nombre?: string;
+  };
+}
+
 /**
  * Realiza el login del usuario contra el backend
  */
@@ -142,5 +166,57 @@ export const checkAuthStatus = async (): Promise<boolean> => {
   } catch (error) {
     console.error('Error verificando auth status:', error);
     return false;
+  }
+};
+
+/**
+ * Registra un usuario en el backend
+ */
+export const registerUser = async (payload: RegisterRequest): Promise<RegisterResponse | ApiError> => {
+  try {
+    // Ajusta la ruta según tu backend real
+    const response = await fetch(`${API_BASE_URL}/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        ...payload,
+        // asegurar ambos campos por compatibilidad
+        ciudad: payload.ciudad ?? payload.ubicacion,
+        ubicacion: payload.ubicacion ?? payload.ciudad,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.message || `Error ${response.status}: ${response.statusText}`,
+        statusCode: response.status,
+      };
+    }
+
+    if (data.token) {
+      await storage.setToken(data.token);
+    }
+    if (data.user) {
+      await storage.setUserData(data.user);
+    }
+
+    return {
+      success: true,
+      token: data.token,
+      user: data.user,
+      message: data.message || 'Registro exitoso',
+    };
+  } catch (error) {
+    console.error('Error en registerUser:', error);
+    return {
+      success: false,
+      message: 'Error de conexión. Verifica que el servidor esté ejecutándose en localhost:4001',
+    };
   }
 };

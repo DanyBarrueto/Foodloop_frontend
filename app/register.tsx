@@ -1,9 +1,11 @@
+import { registerUser } from '@/services/authService';
+import embeddedCss from '@/styles/PaginaPrincipal';
+import registerCss from '@/styles/Register';
+import { storage } from '@/utils/storage';
+import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Platform, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { router } from 'expo-router';
-import embeddedCss from '@/styles/PaginaPrincipal';
-import registerCss from '@/styles/Register';
 
 export default function RegisterScreen() {
   const htmlContent = useMemo(() => `<!DOCTYPE html>
@@ -44,7 +46,7 @@ export default function RegisterScreen() {
                 </svg>
               </div>
             </div>
-            <h1 class="text-3xl font-bold text-gradient mb-2">¡Únete a FoodConnect! 🌟</h1>
+            <h1 class="text-3xl font-bold text-gradient mb-2">¡Únete a FoodLoop! 🌟</h1>
             <p class="text-gray-600">Crea tu cuenta y comienza a hacer la diferencia en tu comunidad</p>
           </div>
 
@@ -63,7 +65,7 @@ export default function RegisterScreen() {
             </div>
 
             <div class="space-y-2">
-              <label for="entityName" class="block text-sm font-semibold text-gray-700">🏷️ Nombre de la Entidad</label>
+              <label for="entityName" class="block text-sm font-semibold text-gray-700">🏷️ Nombre de la entidad o persona</label>
               <input type="text" id="entityName" name="entityName" placeholder="Ej: Panadería La Espiga, Comedor San José..." class="input-field" required />
             </div>
 
@@ -104,7 +106,7 @@ export default function RegisterScreen() {
 
             <div class="flex items-start gap-3">
               <input type="checkbox" id="terms" name="terms" class="mt-1" required />
-              <label for="terms" class="text-sm text-gray-600">Acepto los <a href="#" class="text-gradient">términos y condiciones</a> y la <a href="#" class="text-gradient">política de privacidad</a> de FoodConnect 📋</label>
+              <label for="terms" class="text-sm text-gray-600">Acepto los <a href="#" class="text-gradient">términos y condiciones</a> y la <a href="#" class="text-gradient">política de privacidad</a> de FoodLoop 📋</label>
             </div>
 
             <div id="formError" class="text-red-600 text-sm whitespace-pre-line" style="display:none;"></div>
@@ -118,6 +120,24 @@ export default function RegisterScreen() {
 
           <div class="mt-6 text-center">
             <a href="/" id="goHome" class="btn-secondary">🏠 Volver al inicio</a>
+          </div>
+        </div>
+
+        <!-- Popup/Modal para mensajes -->
+        <div id="appPopup" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+          <div class="bg-white rounded-xl shadow-xl w-[90%] max-w-md p-6">
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                <svg viewBox="0 0 24 24" class="w-6 h-6"><path fill="currentColor" d="M11 15h2V7h-2v8Zm1 6q-.825 0-1.413-.588T10 19q0-.825.588-1.413T12 17q.825 0 1.413.588T14 19q0 .825-.588 1.413T12 21Zm0 1q-4.125 0-7.062-2.937T2 12q0-4.125 2.938-7.062T12 2q4.125 0 7.063 2.938T22 12q0 4.125-2.937 7.063T12 22Z"/></svg>
+              </div>
+              <div class="flex-1">
+                <h3 class="text-lg font-semibold text-gray-900">No se pudo completar el registro</h3>
+                <p id="appPopupMessage" class="mt-2 text-sm text-gray-700">Ocurrió un error. Inténtalo de nuevo.</p>
+              </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+              <button id="appPopupClose" class="btn-primary">Entendido</button>
+            </div>
           </div>
         </div>
       </div>
@@ -146,6 +166,30 @@ export default function RegisterScreen() {
             const matchText = document.getElementById('matchText');
             const form = document.getElementById('registerForm');
             const formError = document.getElementById('formError');
+            const termsCb = document.getElementById('terms');
+
+            // Elementos del popup
+            const popup = document.getElementById('appPopup');
+            const popupMsg = document.getElementById('appPopupMessage');
+            const popupClose = document.getElementById('appPopupClose');
+
+            function showPopup(msg){
+              try { if(popupMsg) popupMsg.textContent = String(msg || 'Ocurrió un error. Inténtalo de nuevo.'); } catch(_){}
+              if(popup){ popup.style.display = 'flex'; }
+            }
+            function hidePopup(){ if(popup){ popup.style.display = 'none'; } }
+            if(popupClose){ popupClose.addEventListener('click', hidePopup); }
+            // Exponer API al contenedor (web/RN) para disparar el popup
+            try { window.AppBridge = { showPopup, hidePopup }; } catch(_){}
+            // Escuchar mensajes del contenedor (web)
+            window.addEventListener('message', function(evt){
+              try {
+                let d = evt && evt.data;
+                if(typeof d === 'string') { try { d = JSON.parse(d); } catch(_){} }
+                if(d && d.type === 'popup') { showPopup(d.message || 'Ocurrió un error. Inténtalo de nuevo.'); }
+                if(d && d.type === 'popup-close') { hidePopup(); }
+              } catch(_){}
+            });
 
             // Estado inicial (idéntico al original)
             if (strengthBar) { strengthBar.className = 'progress-bar strength-weak'; }
@@ -223,6 +267,9 @@ export default function RegisterScreen() {
                   entityType: fd.get('entityType'), entityName: fd.get('entityName'), email: fd.get('email'), phone: fd.get('phone'), location: fd.get('location'), address: fd.get('address'), password: p
                 };
                 if(!data.entityType || !data.entityName || !data.email || !data.phone || !data.location || !data.address){ if(formError){ formError.textContent = '❌ Por favor completa todos los campos'; formError.style.display = 'block'; } return; }
+                // Validar aceptación de términos y condiciones
+                const termsAccepted = (fd.get('terms') === 'on') || (termsCb && termsCb.checked);
+                if(!termsAccepted){ if(formError){ formError.textContent = '❌ Debes aceptar los términos y condiciones para crear tu cuenta'; formError.style.display = 'block'; } return; }
                 const errs = [];
                 if(p.length < 8) errs.push('Mínimo 8 caracteres');
                 if(!/[a-z]/.test(p)) errs.push('Al menos 1 letra minúscula');
@@ -231,7 +278,8 @@ export default function RegisterScreen() {
                 if(!/[^A-Za-z0-9]/.test(p)) errs.push('Al menos 1 carácter especial (!@#$%^&*)');
                 if(confInput && p !== confInput.value){ errs.push('Las contraseñas no coinciden'); }
                 if(errs.length){ if(formError){ formError.textContent = '❌ La contraseña no cumple los requisitos mínimos:\\n\\n' + errs.join('\\n'); formError.style.display = 'block'; } return; }
-                postMessageToApp({ type: 'navigate', href: '/administrador-spt' });
+                // Enviar datos al contenedor (RN/web) para registrar
+                postMessageToApp({ type: 'register', payload: data });
               });
             }
 
@@ -262,14 +310,49 @@ export default function RegisterScreen() {
               const iframeWindow = e.currentTarget.contentWindow;
               if (iframeWindow) {
                 // Bridge postMessage desde iframe a app web
-                window.addEventListener('message', (evt) => {
+                const handler = async (evt: any) => {
                   if (!evt || !evt.data) return;
                   let data = evt.data;
                   try { data = typeof data === 'string' ? JSON.parse(data) : data; } catch {}
                   if (data && data.type === 'navigate' && typeof data.href === 'string') {
                     router.push(data.href);
+                  } else if (data && data.type === 'register' && data.payload) {
+                    // Registro directo en web (parent)
+                    try {
+                      const payload = data.payload;
+                      const city = String(payload.location || '');
+                      const apiPayload: any = {
+                        nombreEntidad: String(payload.entityName || ''),
+                        tipoEntidad: String(payload.entityType || ''),
+                        email: String(payload.email || ''),
+                        telefono: String(payload.phone || ''),
+                        ciudad: city,
+                        direccion: String(payload.address || ''),
+                        password: String(payload.password || ''),
+                      };
+                      // Alias por compatibilidad backend: algunos esperan 'ubicacion'
+                      apiPayload.ubicacion = city;
+                      const res = await registerUser(apiPayload as any);
+                      if (res.success) {
+                        // Política solicitada: tras registro, ir a login (no sesión activa)
+                        await storage.clearAuthData();
+                        router.replace('/login');
+                      } else {
+                        const msg = 'El correo ya está en uso, por favor usa otro correo.';
+                        // Enviar popup al iframe para mostrar el error
+                        try {
+                          iframeWindow.postMessage(JSON.stringify({ type: 'popup', message: msg }), '*');
+                        } catch {}
+                      }
+                    } catch (err) {
+                      console.error('Error registrando (web):', err);
+                      try {
+                        iframeWindow.postMessage(JSON.stringify({ type: 'popup', message: 'Error de conexión al registrar. Inténtalo de nuevo.' }), '*');
+                      } catch {}
+                    }
                   }
-                });
+                };
+                window.addEventListener('message', handler);
                 // Inyectar bridge dentro del iframe para reenviar
                 iframeWindow.ReactNativeWebView = { postMessage: (msg: string) => window.postMessage(msg, '*') };
               }
@@ -283,13 +366,48 @@ export default function RegisterScreen() {
   return (
     <View style={{ flex: 1 }}>
       <WebView
+        ref={(ref) => { /* almacenar ref para poder inyectar JS y mostrar popup en RN */ (global as any).__RegisterWV = ref; }}
         originWhitelist={["*"]}
         source={{ html: htmlContent }}
-        onMessage={(event) => {
+        onMessage={async (event) => {
           try {
             const data = JSON.parse(event.nativeEvent.data);
             if (data?.type === 'navigate' && typeof data.href === 'string') {
               router.push(data.href);
+            } else if (data?.type === 'register' && data.payload) {
+              // Registro en RN (nativo)
+              const payload = data.payload;
+              const city = String(payload.location || '');
+              const apiPayload: any = {
+                nombreEntidad: String(payload.entityName || ''),
+                tipoEntidad: String(payload.entityType || ''),
+                email: String(payload.email || ''),
+                telefono: String(payload.phone || ''),
+                ciudad: city,
+                direccion: String(payload.address || ''),
+                password: String(payload.password || ''),
+              };
+              apiPayload.ubicacion = city;
+              try {
+                const res = await registerUser(apiPayload as any);
+                if (res.success) {
+                  // Política: tras registro exitoso, forzar ir a login (sin sesión)
+                  await storage.clearAuthData();
+                  router.replace('/login');
+                } else {
+                  // Mostrar popup dentro del WebView con el mensaje de error (backend)
+                  const msg = 'El correo ya está en uso, por favor usa otro correo.';
+                  const js = `window.AppBridge && window.AppBridge.showPopup(${JSON.stringify(msg)}); true;`;
+                  const wv: any = (global as any).__RegisterWV;
+                  if (wv && typeof wv.injectJavaScript === 'function') { wv.injectJavaScript(js); }
+                }
+              } catch (err) {
+                console.error('Error registrando (RN):', err);
+                // Popup de error de conexión
+                const js = `window.AppBridge && window.AppBridge.showPopup('Error de conexión al registrar. Inténtalo de nuevo.'); true;`;
+                const wv: any = (global as any).__RegisterWV;
+                if (wv && typeof wv.injectJavaScript === 'function') { wv.injectJavaScript(js); }
+              }
             }
           } catch {}
         }}

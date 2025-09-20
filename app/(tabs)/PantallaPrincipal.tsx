@@ -475,11 +475,11 @@ const htmlContent = `<!DOCTYPE html>
                         </li>
                         <li class="flex items-center gap-2">
                             <span>📱</span>
-                            <span>+34 900 123 456</span>
+                            <span>+57 321 3110414</span>
                         </li>
                         <li class="flex items-center gap-2">
                             <span>📍</span>
-                            <span>Madrid, España</span>
+                            <span>Bogotá, Colombia</span>
                         </li>
                     </ul>
                 </div>

@@ -171,7 +171,7 @@ const html = `<!DOCTYPE html>
         <div class="text-4xl mb-4">🌱</div>
         <h3 class="text-2xl font-bold mb-4">Juntos reducimos el desperdicio alimentario</h3>
         <p class="text-primary-100 mb-6 max-w-2xl mx-auto">
-          FoodConnect conecta a donantes y vendedores de alimentos con personas que los necesitan, creando un impacto positivo en nuestra comunidad y el medio ambiente.
+          FoodLoop conecta a donantes y vendedores de alimentos con personas que los necesitan, creando un impacto positivo en nuestra comunidad y el medio ambiente.
         </p>
         <div class="flex justify-center gap-8 text-sm">
           <span>💚 Sostenible</span>
