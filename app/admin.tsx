@@ -255,7 +255,7 @@ const html = `<!DOCTYPE html>
 					'</tbody></table></div></div>';
 												} else if(state.activeTab==='transacciones'){
 										html = '<div class="admin-table-container">'+
-										'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">💳 Gestión de Transacciones</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="transacciones">➕ Nueva Transacción</button></div>'+
+										'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">💳 Gestión de Transacciones</h2></div>'+
 														'<div class="overflow-x-auto"><table class="admin-table w-full text-sm md:text-base"><thead><tr>'+
 														'<th class="px-3 py-2">ID</th>'+ // id_transaccion
 														'<th class="px-3 py-2">Publicación</th>'+ // título
