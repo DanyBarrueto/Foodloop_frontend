@@ -36,7 +36,6 @@ const html = `<!DOCTYPE html>
 
 					<div class="flex flex-wrap gap-3 justify-center mb-8">
 						<button class="admin-tab-btn active" data-tab="usuarios">👥 Usuarios</button>
-						<button class="admin-tab-btn" data-tab="productos">📦 Productos</button>
 						<button class="admin-tab-btn" data-tab="categorias">🏷️ Categorías</button>
 						<button class="admin-tab-btn" data-tab="publicaciones">📰 Publicaciones</button>
 						<button class="admin-tab-btn" data-tab="transacciones">💳 Transacciones</button>
@@ -115,11 +114,10 @@ const html = `<!DOCTYPE html>
 			// Variables inyectadas desde React (placeholders reemplazados en runtime)
 			const API_BASE_URL = '__API_BASE_URL__';
 			const AUTH_TOKEN = '__AUTH_TOKEN__';
-			const TABS = ['usuarios','productos','categorias','publicaciones','transacciones','reportes'];
+			const TABS = ['usuarios','categorias','publicaciones','transacciones','reportes'];
 			const state = { activeTab: 'usuarios', edit: { open:false, tipo:'', id:null }, del: { open:false, tipo:'', id:null }, statsOverride: {}, data: {
 				usuarios: [ { id:1, nombre:'Ana López', email:'ana@example.com', rol:'admin', estado:'active' }, { id:2, nombre:'Luis Pérez', email:'luis@example.com', rol:'user', estado:'inactive' }, { id:3, nombre:'María Gómez', email:'maria@example.com', rol:'user', estado:'active' } ],
-				productos: [ { id:1, nombre:'Pan artesanal', categoria:'Panadería', stock:40, precio:1.5 }, { id:2, nombre:'Leche entera', categoria:'Lácteos', stock:25, precio:0.9 } ],
-				categorias: [ { id:1, nombre:'Frutas y Verduras', productos:120 }, { id:2, nombre:'Panadería', productos:45 }, { id:3, nombre:'Lácteos', productos:60 } ],
+				categorias: [ { id:1, nombre:'Frutas y Verduras', descripcion:'', estado:'active' }, { id:2, nombre:'Panadería', descripcion:'', estado:'active' }, { id:3, nombre:'Lácteos', descripcion:'', estado:'inactive' } ],
 				publicaciones: [ { id:1, titulo:'Excedente de verduras frescas', tipo:'donación', estado:'active', fecha:'2025-09-01' }, { id:2, titulo:'Pan del día anterior', tipo:'venta', estado:'paused', fecha:'2025-09-10' }, { id:3, titulo:'Lácteos por vencer', tipo:'venta', estado:'expired', fecha:'2025-08-27' } ],
 				transacciones: [ { id:1001, usuario:'Ana López', monto:12.5, estado:'pending', fecha:'2025-09-12' }, { id:1002, usuario:'Luis Pérez', monto:4.0, estado:'completed', fecha:'2025-09-13' } ],
 				reportes: [ { id:501, reportante:'Usuario 23', asunto:'Publicación duplicada', estado:'pending', fecha:'2025-09-09' }, { id:502, reportante:'Usuario 17', asunto:'Contenido inapropiado', estado:'resolved', fecha:'2025-09-11' } ]
@@ -184,23 +182,26 @@ const html = `<!DOCTYPE html>
 					'<button class="admin-btn-warning" data-action="toggle-user" data-id="'+u.id+'">'+(u.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
 					'</div></td></tr>').join('')+
 					'</tbody></table></div></div>';
-				} else if(state.activeTab==='productos'){
-					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📦 Gestión de Productos</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="productos">➕ Nuevo Producto</button></div>'+
-					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Nombre</th><th>Categoría</th><th>Stock</th><th>Precio</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.productos.map(p=>'<tr><td>'+p.id+'</td><td>'+p.nombre+'</td><td>'+p.categoria+'</td><td>'+p.stock+'</td><td>€ '+Number(p.precio).toFixed(2)+'</td><td class="flex flex-wrap gap-2">'+
-					'<button class="admin-btn-secondary" data-action="edit" data-tipo="productos" data-id="'+p.id+'">✏️ Editar</button>'+
-					'<button class="admin-btn-danger" data-action="delete" data-tipo="productos" data-id="'+p.id+'">🗑️ Eliminar</button>'+
-					'</td></tr>').join('')+
-					'</tbody></table></div></div>';
 				} else if(state.activeTab==='categorias'){
 					html = '<div class="admin-table-container">'+
 					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">🏷️ Gestión de Categorías</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="categorias">➕ Nueva Categoría</button></div>'+
-					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Nombre</th><th># Productos</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.categorias.map(g=>'<tr><td>'+g.id+'</td><td>'+g.nombre+'</td><td>'+g.productos+'</td><td class="flex flex-wrap gap-2">'+
+					'<div class="overflow-x-auto"><table class="admin-table w-full text-sm md:text-base"><thead><tr>'+
+					'<th class="px-3 py-2">ID</th>'+
+					'<th class="px-3 py-2">Nombre</th>'+
+					'<th class="px-3 py-2 hidden sm:table-cell">Descripción</th>'+
+					'<th class="px-3 py-2">Estado</th>'+
+					'<th class="px-3 py-2">Acciones</th>'+
+					'</tr></thead><tbody>'+
+					state.data.categorias.map(function(g){ return '<tr>'+
+					'<td class="px-3 py-2">'+g.id+'</td>'+
+					'<td class="px-3 py-2">'+(g.nombre||'')+'</td>'+
+					'<td class="px-3 py-2 hidden sm:table-cell">'+(g.descripcion||'')+'</td>'+
+					'<td class="px-3 py-2">'+(g.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td>'+
+					'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
 					'<button class="admin-btn-secondary" data-action="edit" data-tipo="categorias" data-id="'+g.id+'">✏️ Editar</button>'+
-					'<button class="admin-btn-danger" data-action="delete" data-tipo="categorias" data-id="'+g.id+'">🗑️ Eliminar</button>'+
-					'</td></tr>').join('')+
+					'<button class="admin-btn-warning" data-action="toggle-category" data-id="'+g.id+'">'+(g.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
+					'</div></td>'+
+					'</tr>'; }).join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='publicaciones'){
 					html = '<div class="admin-table-container">'+
@@ -274,9 +275,10 @@ const html = `<!DOCTYPE html>
 					         '<div class="admin-form-group"><label class="admin-form-label">Stock</label><input id="f_stock" type="number" class="admin-form-input" value="'+(p.stock||0)+'" /></div>'+
 					         '<div class="admin-form-group"><label class="admin-form-label">Precio (€)</label><input id="f_precio" type="number" step="0.01" class="admin-form-input" value="'+(p.precio||0)+'" /></div>';
 				} else if(t==='categorias'){
-					const g = id? data.categorias.find(x=>x.id===id) : { nombre:'', productos:0 };
+					const g = id? data.categorias.find(x=>x.id===id) : { nombre:'', descripcion:'', estado:'active' };
 					fields = '<div class="admin-form-group"><label class="admin-form-label">Nombre</label><input id="f_nombre" class="admin-form-input" value="'+(g.nombre||'')+'" /></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label"># Productos</label><input id="f_productos" type="number" class="admin-form-input" value="'+(g.productos||0)+'" /></div>';
+					         '<div class="admin-form-group"><label class="admin-form-label">Descripción</label><textarea id="f_descripcion" class="admin-form-textarea">'+(g.descripcion||'')+'</textarea></div>'+
+					         '<div class="admin-form-group"><label class="admin-form-label">Estado</label><select id="f_estado" class="admin-form-select"><option '+(g.estado==='active'?'selected':'')+'>active</option><option '+(g.estado!=='active'?'selected':'')+'>inactive</option></select></div>';
 				} else if(t==='publicaciones'){
 					const p = id? data.publicaciones.find(x=>x.id===id) : { titulo:'', tipo:'donación', estado:'active', fecha: new Date().toISOString().slice(0,10) };
 					fields = '<div class="admin-form-group"><label class="admin-form-label">Título</label><input id="f_titulo" class="admin-form-input" value="'+(p.titulo||'')+'" /></div>'+
@@ -382,8 +384,26 @@ const html = `<!DOCTYPE html>
 					if(id){ const i=d.productos.findIndex(x=>x.id===id); d.productos[i]={ ...d.productos[i], ...v }; } else { d.productos.push({ id: nextId(d.productos), ...v }); }
 				}
 				else if(t==='categorias'){
-					const v = { nombre:qs('f_nombre').value, productos:Number(qs('f_productos').value||0) };
-					if(id){ const i=d.categorias.findIndex(x=>x.id===id); d.categorias[i]={ ...d.categorias[i], ...v }; } else { d.categorias.push({ id: nextId(d.categorias), ...v }); }
+					const v = { nombre:String(qs('f_nombre').value||'').trim(), descripcion:String((qs('f_descripcion')&&qs('f_descripcion').value)||'').trim(), estado:String(qs('f_estado').value||'').trim() };
+					if(!v.nombre){ showPopup('El nombre de la categoría es obligatorio.'); return; }
+					try{
+						if(AUTH_TOKEN){
+							if(id){
+								const payload = { nombre: v.nombre, descripcion: v.descripcion, estado: (v.estado==='active'?1:0) };
+								const res = await fetch(API_BASE_URL + '/categorias/' + id, { method:'PUT', headers:{ 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+								if(!res.ok){ let msg=''; try{ const j=await res.json(); msg=j && (j.message||j.error)||''; }catch(_){ } showPopup(msg||'No se pudo guardar la categoría'); return; }
+								fetchCategoriesList(); closeEdit(); renderContent(); return;
+							} else {
+								const payloadNew = { nombre: v.nombre, descripcion: v.descripcion };
+								const resNew = await fetch(API_BASE_URL + '/categorias', { method:'POST', headers:{ 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify(payloadNew) });
+								if(!resNew.ok){ let msg2=''; try{ const j2=await resNew.json(); msg2=j2 && (j2.message||j2.error)||''; }catch(_){ } showPopup(msg2||'No se pudo crear la categoría'); return; }
+								fetchCategoriesList(); closeEdit(); renderContent(); return;
+							}
+						}
+					}catch(_){ showPopup('Ocurrió un error al guardar categoría'); return; }
+					// Sin token: actualizar localmente (demo)
+					if(id){ const i=d.categorias.findIndex(function(x){ return x.id===id; }); if(i>-1){ d.categorias[i] = { ...d.categorias[i], ...v }; } }
+					else { d.categorias.push({ id: nextId(d.categorias), ...v }); }
 				}
 				else if(t==='publicaciones'){
 					const v = { titulo:qs('f_titulo').value, tipo:qs('f_tipo').value, estado:qs('f_estado').value, fecha:qs('f_fecha').value };
@@ -403,7 +423,6 @@ const html = `<!DOCTYPE html>
 			function openDelete(mensaje, tipo, id){ state.del={ open:true, tipo:tipo, id:id }; document.getElementById('deleteMessage').textContent = mensaje; document.getElementById('deleteOverlay').classList.add('show'); }
 			function closeDelete(){ state.del.open=false; document.getElementById('deleteOverlay').classList.remove('show'); }
 			function confirmDelete(){ const d=state.data; const del=state.del; if(!del.id){ closeDelete(); return;} const t=del.tipo; if(t==='usuarios'){ d.usuarios = d.usuarios.filter(x=>x.id!==del.id); }
-				else if(t==='productos'){ d.productos = d.productos.filter(x=>x.id!==del.id); }
 				else if(t==='categorias'){ d.categorias = d.categorias.filter(x=>x.id!==del.id); }
 				else if(t==='publicaciones'){ d.publicaciones = d.publicaciones.filter(x=>x.id!==del.id); }
 				else if(t==='transacciones'){ d.transacciones = d.transacciones.filter(x=>x.id!==del.id); }
@@ -542,6 +561,27 @@ const html = `<!DOCTYPE html>
 				} catch(e){ /* noop */ }
 			}
 
+			// Trae lista de categorías desde backend y mapea a la UI (ID ordenado ascendente)
+			async function fetchCategoriesList(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const res = await fetch(API_BASE_URL + '/categorias', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
+					if(!res.ok){ return; }
+					const data = await res.json();
+					if(!Array.isArray(data)){ return; }
+					const mapped = data.map(function(c){
+						var id = (c && (c.id_categoria || c.id)) || 0;
+						var nombre = (c && c.nombre) || '';
+						var descripcion = (c && c.descripcion) || '';
+						var est = Number(c && c.estado);
+						var uiEstado = (est === 1) ? 'active' : 'inactive';
+						return { id: id, nombre: nombre, descripcion: descripcion, estado: uiEstado };
+					}).sort(function(a,b){ return (a.id||0) - (b.id||0); });
+					state.data.categorias = mapped;
+					if(state.activeTab==='categorias'){ renderContent(); }
+				}catch(_){ }
+			}
+
 			function qs(id){ return document.getElementById(id); }
 
 			// Exponer funciones usadas por onclick al objeto global (iframe)
@@ -549,8 +589,27 @@ const html = `<!DOCTYPE html>
 			window.openDelete = openDelete;
 			window.toggleUserStatus = toggleUserStatus;
 			window.togglePublicationStatus = togglePublicationStatus;
+			// No se expone toggle de categoría por ahora
 
-			function setActiveTab(tab){ state.activeTab = tab; document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-tab')===tab)); renderContent(); }
+			async function toggleCategoryStatus(id){
+				const c = state.data.categorias.find(function(x){ return x.id===id; });
+				if(!c) return;
+				const isActive = (c.estado==='active');
+				try{
+					if(AUTH_TOKEN){
+						if(isActive){
+							await fetch(API_BASE_URL + '/categorias/delete/' + id, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
+						} else {
+							await fetch(API_BASE_URL + '/categorias/' + id, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: 1 }) });
+						}
+					}
+				}catch(_){ }
+				c.estado = isActive ? 'inactive' : 'active';
+				renderContent();
+				fetchCategoriesList();
+			}
+
+			function setActiveTab(tab){ state.activeTab = tab; document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-tab')===tab)); renderContent(); if(tab==='categorias'){ fetchCategoriesList(); } }
 
 			function init(){
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
@@ -560,6 +619,7 @@ const html = `<!DOCTYPE html>
 				fetchPublicacionesActivas();
 				fetchTransaccionesCount();
 				fetchReportesPendientes();
+				fetchCategoriesList();
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
 				qs('editForm').addEventListener('submit', saveEdit);
@@ -578,20 +638,18 @@ const html = `<!DOCTYPE html>
 					const tipo = btn.getAttribute('data-tipo');
 					const idAttr = btn.getAttribute('data-id');
 					const id = idAttr ? parseInt(idAttr, 10) : null;
-					switch(action){
+						switch(action){
 						case 'open-new': if(tipo) openEdit(tipo, null); break;
 						case 'edit': if(tipo && id!=null) openEdit(tipo, id); break;
 						case 'toggle-user': if(id!=null) toggleUserStatus(id); break;
 						case 'toggle-publication': if(id!=null) togglePublicationStatus(id); break;
+							case 'toggle-category': if(id!=null) toggleCategoryStatus(id); break;
 						case 'delete':
 							if(!tipo || id==null) break;
 							let mensaje = '';
 							if(tipo==='usuarios'){
 								const u = state.data.usuarios.find(x=>x.id===id);
 								mensaje = '¿Eliminar el usuario '+(u? u.nombre : ('#'+id))+'?';
-							} else if(tipo==='productos'){
-								const p = state.data.productos.find(x=>x.id===id);
-								mensaje = '¿Eliminar el producto '+(p? p.nombre : ('#'+id))+'?';
 							} else if(tipo==='categorias'){
 								const g = state.data.categorias.find(x=>x.id===id);
 								mensaje = '¿Eliminar la categoría '+(g? g.nombre : ('#'+id))+'?';
@@ -622,6 +680,7 @@ const html = `<!DOCTYPE html>
 				fetchPublicacionesActivas();
 				fetchTransaccionesCount();
 				fetchReportesPendientes();
+				fetchCategoriesList();
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
 				qs('editForm').addEventListener('submit', saveEdit);
@@ -644,6 +703,7 @@ const html = `<!DOCTYPE html>
 						case 'edit': if(tipo && id!=null) openEdit(tipo, id); break;
 						case 'toggle-user': if(id!=null) toggleUserStatus(id); break;
 						case 'toggle-publication': if(id!=null) togglePublicationStatus(id); break;
+						case 'toggle-category': if(id!=null) toggleCategoryStatus(id); break;
 						case 'delete':
 							if(!tipo || id==null) break;
 							let mensaje = '';
