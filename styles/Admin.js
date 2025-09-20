@@ -100,6 +100,9 @@ const AdminCss = `
 .admin-btn-cancel { background: #fff; border: 1px solid #e5e7eb; color: #374151; padding: .5rem 1rem; border-radius: .5rem; }
 .admin-btn-save { background: linear-gradient(135deg, var(--primary-500), var(--primary-600)); color: #fff; padding: .5rem 1rem; border-radius: .5rem; }
 
+/* Asegurar que el popup global quede por delante del modal de edición */
+#appPopup { position: fixed; inset: 0; z-index: 2000 !important; }
+
 .admin-form-group { margin-bottom: 1rem; }
 .admin-form-label { display: block; font-weight: 600; color: #374151; margin-bottom: .5rem; }
 .admin-form-input { width: 100%; background: rgba(255,255,255,.9); border: 2px solid rgba(34,197,94,.2); border-radius: .5rem; padding: .75rem 1rem; font-size: .95rem; transition: all .3s ease; }

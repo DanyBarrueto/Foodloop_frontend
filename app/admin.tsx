@@ -67,9 +67,24 @@ const html = `<!DOCTYPE html>
 		</div>
 
 			<!-- Modal Edición -->
+			<!-- Popup simple para mostrar mensajes -->
+			<div id="appPopup" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+				<div class="bg-white rounded-xl shadow-xl w-[90%] max-w-md p-6">
+					<div class="flex items-start gap-3">
+						<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">⚠️</div>
+						<div class="flex-1">
+							<h3 class="text-lg font-semibold text-gray-900">Aviso</h3>
+							<p id="appPopupMessage" class="mt-2 text-sm text-gray-700">Ocurrió un error.</p>
+						</div>
+					</div>
+					<div class="mt-6 flex justify-end">
+						<button id="appPopupClose" class="admin-btn-primary">Entendido</button>
+					</div>
+				</div>
+			</div>
 			<div id="modalOverlay" class="admin-modal-overlay">
 				<div class="admin-modal-content">
-					<button class="admin-btn-close" id="btnCloseEdit">✖</button>
+					<button type="button" class="admin-btn-close" id="btnCloseEdit">✖</button>
 					<h3 id="modalTitle" class="text-2xl font-bold mb-4 text-gray-800">Editar</h3>
 					<form id="editForm" class="space-y-4">
 						<div id="modalFields"></div>
@@ -95,6 +110,8 @@ const html = `<!DOCTYPE html>
 			</div>
 
 		<script>
+			function showPopup(msg){ try{ var p=document.getElementById('appPopup'); var m=document.getElementById('appPopupMessage'); if(m) m.textContent=String(msg||'Ocurrió un error.'); if(p){ p.style.display='flex'; p.classList.remove('hidden'); } }catch(_){} }
+			function hidePopup(){ try{ var p=document.getElementById('appPopup'); if(p){ p.style.display='none'; p.classList.add('hidden'); } }catch(_){} }
 			// Variables inyectadas desde React (placeholders reemplazados en runtime)
 			const API_BASE_URL = '__API_BASE_URL__';
 			const AUTH_TOKEN = '__AUTH_TOKEN__';
@@ -109,6 +126,15 @@ const html = `<!DOCTYPE html>
 			}};
 
 			function formatDate(iso){ try { return new Date(iso).toLocaleDateString('es-ES'); } catch(e){ return iso; } }
+
+			// Validación simple de email
+			function isValidEmail(email){
+				try{
+					if(!email || typeof email !== 'string') return false;
+					var re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+					return re.test(String(email).trim());
+				}catch(_){ return false; }
+			}
 
 			function renderStats(){
 				const d = state.data;
@@ -137,12 +163,26 @@ const html = `<!DOCTYPE html>
 				if(state.activeTab==='usuarios'){
 					html = '<div class="admin-table-container">'+
 					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">👥 Gestión de Usuarios</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="usuarios">➕ Nuevo Usuario</button></div>'+
-					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.usuarios.map(u=>'<tr><td>'+u.id+'</td><td>'+u.nombre+'</td><td>'+u.email+'</td><td>'+u.rol+'</td><td>'+(u.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td><td class="flex flex-wrap gap-2">'+
+					'<div class="overflow-x-auto"><table class="admin-table w-full text-sm md:text-base"><thead><tr>'+ 
+					'<th class="px-3 py-2">ID</th>'+ 
+					'<th class="px-3 py-2">Nombre</th>'+ 
+					'<th class="px-3 py-2 hidden sm:table-cell">Tipo Entidad</th>'+ 
+					'<th class="px-3 py-2 hidden md:table-cell">Email</th>'+ 
+					'<th class="px-3 py-2 hidden md:table-cell">Rol</th>'+ 
+					'<th class="px-3 py-2">Estado</th>'+ 
+					'<th class="px-3 py-2">Acciones</th>'+ 
+					'</tr></thead><tbody>'+
+					state.data.usuarios.map(u=>'<tr>'+ 
+					'<td class="px-3 py-2">'+u.id+'</td>'+ 
+					'<td class="px-3 py-2">'+u.nombre+'</td>'+ 
+					'<td class="px-3 py-2 hidden sm:table-cell">'+(u.tipoEntidad||'')+'</td>'+ 
+					'<td class="px-3 py-2 hidden md:table-cell">'+u.email+'</td>'+ 
+					'<td class="px-3 py-2 hidden md:table-cell">'+u.rol+'</td>'+ 
+					'<td class="px-3 py-2">'+(u.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td>'+ 
+					'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
 					'<button class="admin-btn-secondary" data-action="edit" data-tipo="usuarios" data-id="'+u.id+'">✏️ Editar</button>'+
 					'<button class="admin-btn-warning" data-action="toggle-user" data-id="'+u.id+'">'+(u.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
-					'<button class="admin-btn-danger" data-action="delete" data-tipo="usuarios" data-id="'+u.id+'">🗑️ Eliminar</button>'+
-					'</td></tr>').join('')+
+					'</div></td></tr>').join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='productos'){
 					html = '<div class="admin-table-container">'+
@@ -209,9 +249,22 @@ const html = `<!DOCTYPE html>
 				document.getElementById('modalTitle').textContent = (id? 'Editar ' : 'Agregar ') + t;
 				let fields = '';
 				if(t==='usuarios'){
-					const u = id? data.usuarios.find(x=>x.id===id) : { nombre:'', email:'', rol:'user', estado:'active' };
+					const u = id? data.usuarios.find(x=>x.id===id) : { nombre:'', tipoEntidad:'', email:'', telefono:'', direccion:'', ubicacion:'', rol:'user', estado:'active' };
 					fields = '<div class="admin-form-group"><label class="admin-form-label">Nombre</label><input id="f_nombre" class="admin-form-input" value="'+(u.nombre||'')+'" /></div>'+
+					         '<div class="admin-form-group"><label class="admin-form-label">Tipo Entidad</label>'+ 
+					         '<select id="f_tipoEntidad" class="admin-form-select">'+
+					           '<option value="">Selecciona tu tipo de entidad</option>'+
+					           '<option '+(u.tipoEntidad==='Restaurante'?'selected':'')+' value="Restaurante">🍽️ Restaurante</option>'+
+					           '<option '+(u.tipoEntidad==='Panadería'?'selected':'')+' value="Panadería">🥖 Panadería</option>'+
+					           '<option '+(u.tipoEntidad==='Supermercado'?'selected':'')+' value="Supermercado">🛒 Supermercado</option>'+
+					           '<option '+(u.tipoEntidad==='ONG'?'selected':'')+' value="ONG">🤝 ONG / Comedor Social</option>'+
+					           '<option '+(u.tipoEntidad==='Particular'?'selected':'')+' value="Particular">👤 Particular</option>'+
+					           '<option '+(u.tipoEntidad==='Otro'?'selected':'')+' value="Otro">🏪 Otro</option>'+
+					         '</select></div>'+
 					         '<div class="admin-form-group"><label class="admin-form-label">Email</label><input id="f_email" class="admin-form-input" value="'+(u.email||'')+'" /></div>'+
+					         '<div class="admin-form-group"><label class="admin-form-label">Teléfono</label><input id="f_telefono" class="admin-form-input" value="'+(u.telefono||'')+'" /></div>'+
+					         '<div class="admin-form-group"><label class="admin-form-label">Dirección</label><input id="f_direccion" class="admin-form-input" value="'+(u.direccion||'')+'" /></div>'+
+					         '<div class="admin-form-group"><label class="admin-form-label">Ubicación</label><input id="f_ubicacion" class="admin-form-input" value="'+(u.ubicacion||'')+'" /></div>'+
 					         '<div class="admin-form-group"><label class="admin-form-label">Rol</label><select id="f_rol" class="admin-form-select"><option '+(u.rol==='admin'?'selected':'')+'>admin</option><option '+(u.rol==='user'?'selected':'')+'>user</option></select></div>'+
 					         '<div class="admin-form-group"><label class="admin-form-label">Estado</label><select id="f_estado" class="admin-form-select"><option '+(u.estado==='active'?'selected':'')+'>active</option><option '+(u.estado!=='active'?'selected':'')+'>inactive</option></select></div>';
 				} else if(t==='productos'){
@@ -244,12 +297,83 @@ const html = `<!DOCTYPE html>
 					         '<div class="admin-form-group"><label class="admin-form-label">Fecha</label><input id="f_fecha" type="date" class="admin-form-input" value="'+(r.fecha||'')+'" /></div>';
 				}
 				document.getElementById('modalFields').innerHTML = fields;
+				// Enfocar el primer campo para evitar que el botón de cerrar capture la primera pulsación
+				try{
+					var container = document.getElementById('modalFields');
+					var firstField = container && container.querySelector('input, select, textarea');
+					if(firstField && typeof firstField.focus==='function') { firstField.focus(); }
+				}catch(_){ }
 			}
 
-			function saveEdit(e){ e && e.preventDefault && e.preventDefault(); const t=state.edit.tipo; const id=state.edit.id; const d=state.data;
+			async function saveEdit(e){ e && e.preventDefault && e.preventDefault(); const t=state.edit.tipo; const id=state.edit.id; const d=state.data;
 				if(t==='usuarios'){
-					const v = { nombre:qs('f_nombre').value, email:qs('f_email').value, rol:qs('f_rol').value, estado:qs('f_estado').value };
-					if(id){ const i=d.usuarios.findIndex(x=>x.id===id); d.usuarios[i]={ ...d.usuarios[i], ...v }; } else { d.usuarios.push({ id: nextId(d.usuarios), ...v }); }
+					// Leer y normalizar valores
+					const v = {
+						nombre: String(qs('f_nombre').value || '').trim(),
+						tipoEntidad: String(qs('f_tipoEntidad').value || '').trim(),
+						email: String(qs('f_email').value || '').trim(),
+						telefono: String((qs('f_telefono') && qs('f_telefono').value) || '').trim(),
+						direccion: String((qs('f_direccion') && qs('f_direccion').value) || '').trim(),
+						ubicacion: String((qs('f_ubicacion') && qs('f_ubicacion').value) || '').trim(),
+						rol: String(qs('f_rol').value || '').trim(),
+						estado: String(qs('f_estado').value || '').trim()
+					};
+					// Validaciones cliente
+					if(!v.nombre){ showPopup('El nombre es obligatorio.'); return; }
+					if(!v.email){ showPopup('El correo es obligatorio.'); return; }
+					if(!isValidEmail(v.email)){ showPopup('El correo no tiene un formato válido.'); return; }
+					// Duplicado local (ignora el usuario que se está editando)
+					try{
+						var existsLocal = (Array.isArray(d.usuarios) ? d.usuarios : []).some(function(u){ return u && u.email && u.email.toLowerCase()===v.email.toLowerCase() && u.id!==id; });
+						if(existsLocal){ showPopup('Ese correo ya existe en la lista. Prueba con otro.'); return; }
+					}catch(_){ /* noop */ }
+					try{
+						if(AUTH_TOKEN){
+							if(id){
+								// Mapear a payload backend: nombreEntidad, correo, estado (0=inactivo, 1=usuario activo, 2=admin activo)
+								var estadoNum = 0;
+								if(v.estado==='active') { estadoNum = (v.rol==='admin') ? 2 : 1; } else { estadoNum = 0; }
+								const payload = { nombreEntidad: v.nombre, tipoEntidad: v.tipoEntidad, correo: v.email, estado: estadoNum, telefono: v.telefono, direccion: v.direccion, ubicacion: v.ubicacion };
+								const res = await fetch(API_BASE_URL + '/users/' + id, {
+									method: 'PUT',
+									headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+									body: JSON.stringify(payload)
+								});
+								if(!res.ok){
+									let msg = '';
+									try{ const j = await res.json(); msg = j && (j.message||j.error||'') || ''; }catch(_){ }
+									if(res.status === 409){ showPopup(msg || 'El correo ya está en uso, por favor usa otro correo.'); return; }
+									showPopup(msg || 'No se pudo guardar los cambios.'); return;
+								}
+								// Éxito: refrescar y cerrar modal
+								fetchUsersList();
+								closeEdit(); updateStats(); renderContent();
+								return;
+							} else {
+								// Crear nuevo usuario (opcional): usar /register
+								const payloadNew = { nombreEntidad: v.nombre, correo: v.email, password: 'Temporal123', tipoEntidad: v.tipoEntidad || (v.rol==='admin' ? 'admin' : 'usuario'), telefono: v.telefono, direccion: v.direccion, ubicacion: v.ubicacion };
+								const resNew = await fetch(API_BASE_URL + '/register', {
+									method: 'POST',
+									headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+									body: JSON.stringify(payloadNew)
+								});
+								if(!resNew.ok){
+									let msg2=''; try{ const j2=await resNew.json(); msg2=j2 && (j2.message||j2.error||'') || ''; }catch(_){ }
+									showPopup(msg2 || 'No se pudo crear el usuario.'); return;
+								}
+								fetchUsersList();
+								closeEdit(); updateStats(); renderContent();
+								return;
+							}
+						}
+					} catch(err){ showPopup('Ocurrió un error al guardar. Inténtalo de nuevo.'); return; }
+					// Si no hay token, solo actualizar localmente (modo demo)
+					if(id){ const i=d.usuarios.findIndex(function(x){ return x.id===id; }); if(i>-1){ d.usuarios[i] = { ...d.usuarios[i], ...v }; } }
+					else { d.usuarios.push({ id: nextId(d.usuarios), ...v }); }
+					// Mantener usuarios ordenados por ID ascendente
+					d.usuarios.sort(function(a,b){ return (a.id||0) - (b.id||0); });
+					closeEdit(); updateStats(); renderContent();
+					return;
 				}
 				else if(t==='productos'){
 					const v = { nombre:qs('f_nombre').value, categoria:qs('f_categoria').value, stock:Number(qs('f_stock').value||0), precio:Number(qs('f_precio').value||0) };
@@ -284,7 +408,28 @@ const html = `<!DOCTYPE html>
 				else if(t==='reportes'){ d.reportes = d.reportes.filter(x=>x.id!==del.id); }
 				closeDelete(); updateStats(); renderContent(); }
 
-			function toggleUserStatus(id){ const u = state.data.usuarios.find(x=>x.id===id); if(!u) return; u.estado = (u.estado==='active') ? 'inactive' : 'active'; updateStats(); renderContent(); }
+			async function toggleUserStatus(id){
+				const u = state.data.usuarios.find(x=>x.id===id);
+				if(!u) return;
+				const isActive = (u.estado==='active');
+				// Determinar nuevo estado numérico: desactivar => 0, activar => 1 (user) o 2 (admin)
+				let nextNum = 0;
+				if(!isActive){ nextNum = (u.rol==='admin') ? 2 : 1; } else { nextNum = 0; }
+				try{
+					if(AUTH_TOKEN){
+						await fetch(API_BASE_URL + '/users/' + id, {
+							method: 'PUT',
+							headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+							body: JSON.stringify({ estado: nextNum })
+						});
+					}
+				} catch(_){ /* noop */ }
+				// Actualizar UI localmente
+				u.estado = isActive ? 'inactive' : 'active';
+				updateStats(); renderContent();
+				// Refrescar desde backend para asegurar consistencia
+				fetchUsersList();
+			}
 			function togglePublicationStatus(id){ const p = state.data.publicaciones.find(x=>x.id===id); if(!p || p.estado==='expired') return; p.estado = (p.estado==='paused') ? 'active' : 'paused'; updateStats(); renderContent(); }
 
 			function updateStats(){
@@ -361,6 +506,40 @@ const html = `<!DOCTYPE html>
 				} catch(e){ /* noop */ }
 			}
 
+			// Trae lista de usuarios y mapea campos para la tabla
+			async function fetchUsersList(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const res = await fetch(API_BASE_URL + '/users', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
+					if(!res.ok) { return; }
+					const data = await res.json();
+					if(!Array.isArray(data)) { return; }
+					// Mapear a la forma usada por la UI: { id, nombre, tipoEntidad, email, rol, estado }
+					const mapped = data.map(function(u){
+						var id = (u && (u.id_usuario || u.id)) || 0;
+						var tipoEntidad = (u && (u.tipo_entidad || u.tipoEntidad)) || '';
+						var nombreEntidad = (u && (u.nombre_entidad || u.nombreEntidad)) || '';
+						var correo = (u && u.correo) || '';
+						var telefono = (u && u.telefono) || '';
+						var direccion = (u && u.direccion) || '';
+						var ubicacion = (u && u.ubicacion) || '';
+						var est = Number(u && u.estado);
+						var rol = (est === 2) ? 'admin' : 'user';
+						// estado en la UI: 'active' si estado === 1 o 2, 'inactive' si estado === 0
+						var uiEstado = (est === 0) ? 'inactive' : 'active';
+						return { id: id, nombre: nombreEntidad, tipoEntidad: tipoEntidad, email: correo, telefono: telefono, direccion: direccion, ubicacion: ubicacion, rol: rol, estado: uiEstado };
+					});
+					state.data = state.data || {}; state.data.usuarios = mapped.sort(function(a,b){ return (a.id||0) - (b.id||0); });
+					// Actualizar stats override y DOM del primer card
+					state.statsOverride = state.statsOverride || {};
+					state.statsOverride.usuariosTotales = mapped.length;
+					var n = document.querySelector('#stats .admin-stats-card:nth-child(1) .text-3xl');
+					if(n) n.textContent = String(mapped.length);
+					// Si estamos en la pestaña usuarios, re-renderizar la tabla
+					if(state.activeTab === 'usuarios') { renderContent(); }
+				} catch(e){ /* noop */ }
+			}
+
 			function qs(id){ return document.getElementById(id); }
 
 			// Exponer funciones usadas por onclick al objeto global (iframe)
@@ -375,13 +554,14 @@ const html = `<!DOCTYPE html>
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
 				renderStats();
 				renderContent(); // Mostrar contenido inicial
-				fetchUsersCount();
+				fetchUsersList();
 				fetchPublicacionesActivas();
 				fetchTransaccionesCount();
 				fetchReportesPendientes();
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
 				qs('editForm').addEventListener('submit', saveEdit);
+				var _pclose = document.getElementById('appPopupClose'); if(_pclose){ _pclose.addEventListener('click', hidePopup); }
 				qs('btnCloseDelete').addEventListener('click', closeDelete);
 				qs('btnCancelDelete').addEventListener('click', closeDelete);
 				qs('btnConfirmDelete').addEventListener('click', confirmDelete);
@@ -436,13 +616,14 @@ const html = `<!DOCTYPE html>
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
 				renderStats();
 				renderContent(); // Mostrar contenido inicial
-				fetchUsersCount();
+				fetchUsersList();
 				fetchPublicacionesActivas();
 				fetchTransaccionesCount();
 				fetchReportesPendientes();
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
 				qs('editForm').addEventListener('submit', saveEdit);
+				var _pclose2 = document.getElementById('appPopupClose'); if(_pclose2){ _pclose2.addEventListener('click', hidePopup); }
 				qs('btnCloseDelete').addEventListener('click', closeDelete);
 				qs('btnCancelDelete').addEventListener('click', closeDelete);
 				qs('btnConfirmDelete').addEventListener('click', confirmDelete);
