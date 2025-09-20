@@ -613,11 +613,34 @@ const html = `<!DOCTYPE html>
 					};
 					// Validaciones cliente
 					if(!v.nombre){ showPopup('El nombre es obligatorio.'); return; }
-					if(!v.email){ showPopup('El correo es obligatorio.'); return; }
-					if(!isValidEmail(v.email)){ showPopup('El correo no tiene un formato válido.'); return; }
+					// Si estamos editando, permitir dejar el correo sin cambios
+					try{
+						if(id){
+							const orig = (state.data.usuarios||[]).find(function(u){ return u && u.id===id; });
+							const origEmail = orig && orig.email ? String(orig.email) : '';
+							if(!v.email){ v.email = origEmail; }
+							if(v.email !== origEmail){
+								if(!v.email){ showPopup('El correo es obligatorio.'); return; }
+								if(!isValidEmail(v.email)){ showPopup('El correo no tiene un formato válido.'); return; }
+							}
+						} else {
+							// Creación: correo requerido y formato válido
+							if(!v.email){ showPopup('El correo es obligatorio.'); return; }
+							if(!isValidEmail(v.email)){ showPopup('El correo no tiene un formato válido.'); return; }
+						}
+					}catch(_){ /* noop */ }
 					// Duplicado local (ignora el usuario que se está editando)
 					try{
-						var existsLocal = (Array.isArray(d.usuarios) ? d.usuarios : []).some(function(u){ return u && u.email && u.email.toLowerCase()===v.email.toLowerCase() && u.id!==id; });
+						var existsLocal = false;
+						if(id){
+							const orig = (state.data.usuarios||[]).find(function(u){ return u && u.id===id; });
+							const origEmail = orig && orig.email ? String(orig.email) : '';
+							if(v.email !== origEmail){
+								existsLocal = (Array.isArray(d.usuarios) ? d.usuarios : []).some(function(u){ return u && u.email && u.email.toLowerCase()===v.email.toLowerCase() && u.id!==id; });
+							}
+						} else {
+							existsLocal = (Array.isArray(d.usuarios) ? d.usuarios : []).some(function(u){ return u && u.email && u.email.toLowerCase()===v.email.toLowerCase(); });
+						}
 						if(existsLocal){ showPopup('Ese correo ya existe en la lista. Prueba con otro.'); return; }
 					}catch(_){ /* noop */ }
 					try{

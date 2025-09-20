@@ -1,3 +1,5 @@
+import { useAuth } from '@/context/AuthContext';
+import { API_BASE_URL as API_BASE } from '@/services/authService';
 import exploradorCss from '@/styles/Explorador';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import { router } from 'expo-router';
@@ -68,6 +70,12 @@ const html = `<!DOCTYPE html>
   </style>
 </head>
 <body class="bg-gradient-to-br from-primary-50 via-accent-50 to-secondary-50 font-sans">
+  <script>
+    // Variables inyectadas desde React
+    const API_BASE_URL = '__API_BASE_URL__';
+    const AUTH_TOKEN = '__AUTH_TOKEN__';
+    const CURRENT_USER_ID = '__CURRENT_USER_ID__';
+  </script>
   <div class="min-h-screen" style="background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);">
     <!-- Hero -->
     <section class="hero-gradient py-24 px-6 text-center text-white relative overflow-hidden">
@@ -143,17 +151,17 @@ const html = `<!DOCTYPE html>
         <div id="statsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
           <div class="card p-6 text-center">
             <div class="text-4xl mb-3">📊</div>
-            <div id="totalCount" class="text-3xl font-bold text-primary-600">8</div>
+            <div id="totalCount" class="text-3xl font-bold text-primary-600">0</div>
             <div class="text-gray-600 font-medium">Listados Activos</div>
           </div>
           <div class="card p-6 text-center">
             <div class="text-4xl mb-3">🎁</div>
-            <div id="donationCount" class="text-3xl font-bold text-primary-600">4</div>
+            <div id="donationCount" class="text-3xl font-bold text-primary-600">0</div>
             <div class="text-gray-600 font-medium">Donaciones</div>
           </div>
           <div class="card p-6 text-center">
             <div class="text-4xl mb-3">🏪</div>
-            <div id="saleCount" class="text-3xl font-bold text-secondary-600">4</div>
+            <div id="saleCount" class="text-3xl font-bold text-secondary-600">0</div>
             <div class="text-gray-600 font-medium">Ofertas Especiales</div>
           </div>
         </div>
@@ -197,110 +205,70 @@ const html = `<!DOCTYPE html>
   </div>
 
   <script>
-    // Datos mock
-    const MOCK_LISTINGS = [
-      {
-        id: '1',
-        entityName: 'Comedor Solidario San José',
-        title: 'Excedente de verduras frescas',
-        description: 'Tenemos una gran cantidad de verduras variadas: zanahorias, lechugas, tomates y pimientos. Perfectas para comedores sociales o familias necesitadas.',
-        foodType: 'donacion',
-        location: 'Madrid',
-        contactInfo: 'contacto@comedor.org',
-        createdAt: '2025-08-13T10:00:00Z',
-        emoji: '🥕',
-      },
-      {
-        id: '2',
-        entityName: 'Panadería Artesanal El Trigo',
-        title: 'Pan del día anterior',
-        description: 'Pan artesanal recién horneado del día anterior. Ideal para hacer tostadas, pan rallado o simplemente disfrutar. Variedad de panes integrales y blancos.',
-        foodType: 'donacion',
-        location: 'Madrid',
-        contactInfo: 'contacto@comedor.org',
-        createdAt: '2025-08-13T09:00:00Z',
-        emoji: '🍞',
-      },
-      {
-        id: '3',
-        entityName: 'Panadería La Espiga Dorada',
-        title: 'Lotes de bollería a punto de caducar',
-        description: 'Bollería variada con fecha de vencimiento próxima (2 días): croissants, magdalenas, donuts y pasteles. Descuento del 50% sobre precio original.',
-        foodType: 'venta',
-        location: 'Barcelona',
-        expirationDate: '2025-08-15',
-        contactInfo: 'ventas@panaderia.es',
-        createdAt: '2025-08-13T08:00:00Z',
-        emoji: '🥐',
-      },
-      {
-        id: '4',
-        entityName: 'Lácteos Frescos del Valle',
-        title: 'Yogures con 3 días de caducidad',
-        description: 'Pack de 6 yogures naturales de alta calidad, caducan en 3 días. Perfectos para consumo inmediato. Precio especial por lote completo.',
-        foodType: 'venta',
-        location: 'Barcelona',
-        expirationDate: '2025-08-16',
-        contactInfo: 'ventas@panaderia.es',
-        createdAt: '2025-08-13T07:00:00Z',
-        emoji: '🥛',
-      },
-      {
-        id: '5',
-        entityName: 'Supermercado Verde Ecológico',
-        title: 'Frutas maduras para donación',
-        description: 'Frutas que están muy maduras pero perfectas para batidos, mermeladas o consumo inmediato: plátanos, manzanas, peras y naranjas.',
-        foodType: 'donacion',
-        location: 'Valencia',
-        contactInfo: 'donaciones@supermercadoverde.com',
-        createdAt: '2025-08-12T18:00:00Z',
-        emoji: '🍎',
-      },
-      {
-        id: '6',
-        entityName: 'Restaurante El Buen Sabor',
-        title: 'Comida preparada del día',
-        description: 'Platos preparados que no se vendieron hoy: paellas, guisos y ensaladas. Perfectos para llevar y consumir en el día. Calidad garantizada.',
-        foodType: 'venta',
-        location: 'Sevilla',
-        expirationDate: '2025-08-14',
-        contactInfo: 'info@elbuensabor.es',
-        createdAt: '2025-08-12T20:00:00Z',
-        emoji: '🥘',
-      },
-      {
-        id: '7',
-        entityName: 'Carnicería Los Hermanos',
-        title: 'Embutidos próximos a caducar',
-        description: 'Jamón serrano, chorizo y salchichón artesanal con 5 días para caducidad. Excelente calidad a precio reducido del 40%.',
-        foodType: 'venta',
-        location: 'Bilbao',
-        expirationDate: '2025-08-18',
-        contactInfo: 'hermanos@carniceria.com',
-        createdAt: '2025-08-12T15:00:00Z',
-        emoji: '🥓',
-      },
-      {
-        id: '8',
-        entityName: 'Huerto Urbano Comunitario',
-        title: 'Cosecha excedente de temporada',
-        description: 'Verduras frescas recién cosechadas: calabacines, berenjenas, pimientos y hierbas aromáticas. Cultivo ecológico sin pesticidas.',
-        foodType: 'donacion',
-        location: 'Granada',
-        contactInfo: 'huerto@comunidad.org',
-        createdAt: '2025-08-12T12:00:00Z',
-        emoji: '🍆',
-      },
-    ];
-
-    // Estado global
-    let currentListings = [...MOCK_LISTINGS];
+    // Estado global y datos
+    let ALL_LISTINGS = [];
+    let currentListings = [];
     let requestedItems = new Set();
     let currentFilters = {
       search: '',
       foodType: 'all',
       location: ''
     };
+
+    async function fetchListings(){
+      try{
+        if(!API_BASE_URL){ return; }
+        const headers = { 'Accept':'application/json', ...(AUTH_TOKEN ? { 'Authorization': 'Bearer '+AUTH_TOKEN } : {}) };
+        const [pRes, uRes] = await Promise.all([
+          fetch(API_BASE_URL + '/publicaciones', { headers }),
+          fetch(API_BASE_URL + '/users', { headers })
+        ]);
+        const pData = pRes.ok ? await pRes.json() : [];
+        const uData = uRes.ok ? await uRes.json() : [];
+        // Mapear usuarios
+        const userMap = {};
+        (Array.isArray(uData)?uData:[]).forEach(u=>{
+          const id = (u && (u.id_usuario||u.id));
+          if(id!=null){ userMap[id] = {
+            nombre: (u.nombre_entidad||u.nombreEntidad||u.nombre||('Usuario #'+id)),
+            ubicacion: (u.ubicacion||u.ciudad||'')
+          }; }
+        });
+        // Filtrar activas y excluir las del usuario actual
+        const myId = CURRENT_USER_ID ? Number(CURRENT_USER_ID) : null;
+        const onlyActiveFromOthers = (Array.isArray(pData)?pData:[]).filter(p=>{
+          const estado = Number(p && p.estado);
+          const uid = (p && (p.usuario_id || p.usuarioId || (p.usuario && (p.usuario.id || p.usuario.id_usuario))));
+          if(estado !== 1) return false;
+          if(myId!=null && uid===myId) return false;
+          return true;
+        });
+        // Mapear a tarjetas
+        ALL_LISTINGS = onlyActiveFromOthers.map(p=>{
+          const id = (p && (p.id_publicacion||p.id));
+          const uid = (p && (p.usuario_id || p.usuarioId || (p.usuario && (p.usuario.id || p.usuario.id_usuario))));
+          const uinfo = (uid!=null && userMap[uid]) ? userMap[uid] : { nombre: 'Usuario #'+uid, ubicacion: '' };
+          const tipo = (p && (p.tipo||'')).toLowerCase();
+          const expiration = (p && (p.fecha_caducidad || p.fechaCaducidad));
+          return {
+            id: String(id),
+            usuarioId: uid,
+            entityName: uinfo.nombre,
+            title: p.titulo || '',
+            description: p.descripcion || '',
+            foodType: (tipo.indexOf('don')===0 ? 'donacion' : (tipo==='venta'?'venta':'donacion')),
+            location: uinfo.ubicacion || '',
+            contactInfo: '',
+            createdAt: new Date().toISOString(),
+            expirationDate: expiration ? String(expiration).slice(0,10) : '',
+            emoji: (tipo.indexOf('don')===0 ? '🤝' : '💰')
+          };
+        });
+        currentListings = [...ALL_LISTINGS];
+        updateStats();
+        renderListings();
+      }catch(e){ console.error('Error cargando publicaciones', e); }
+    }
 
     // Función de navegación
     function navigateTo(path) {
@@ -321,7 +289,7 @@ const html = `<!DOCTYPE html>
       const foodType = currentFilters.foodType;
       const location = currentFilters.location.toLowerCase();
 
-      currentListings = MOCK_LISTINGS.filter(listing => {
+      currentListings = ALL_LISTINGS.filter(listing => {
         const matchesSearch = search === '' || 
           listing.title.toLowerCase().includes(search) ||
           listing.description.toLowerCase().includes(search) ||
@@ -403,7 +371,7 @@ const html = `<!DOCTYPE html>
                     <line x1="8" x2="8" y1="2" y2="6" />
                     <line x1="3" x2="21" y1="10" y2="10" />
                   </svg>
-                  <span>Caduca: \${new Date(listing.expirationDate).toLocaleDateString('es-ES')}</span>
+                  <span>Caduca: \${String(listing.expirationDate).slice(0,10)}</span>
                 </div>
               \` : ''}
               <div class="flex items-center gap-2 text-sm text-gray-600">
@@ -476,7 +444,7 @@ const html = `<!DOCTYPE html>
     }
 
     // Event listeners
-    document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function() {
       // Animaciones de entrada
       setTimeout(() => {
         const elements = document.querySelectorAll('.animate-fade-in');
@@ -511,14 +479,15 @@ const html = `<!DOCTYPE html>
         }
       });
 
-      // Render inicial
-      renderListings();
+      // Carga inicial desde backend
+      fetchListings();
     });
   </script>
 </body>
 </html>`;
 
 export default function ExplorerScreen() {
+  const { token, user } = useAuth();
   const webViewRef = React.useRef<WebView>(null);
 
   const handleNavbarMessage = (data: any) => {
@@ -526,13 +495,21 @@ export default function ExplorerScreen() {
     console.log('Mensaje del navbar:', data);
   };
 
+  const htmlWithEnv = React.useMemo(()=>{
+    const uid = user?.id ? String(user.id) : '';
+    return html
+      .replace('__API_BASE_URL__', API_BASE)
+      .replace('__AUTH_TOKEN__', token ?? '')
+      .replace('__CURRENT_USER_ID__', uid);
+  }, [token, user]);
+
   if (Platform.OS === 'web') {
     return (
       <SafeAreaView style={styles.safe}>
         <Navbar onMessage={handleNavbarMessage} />
         <View style={styles.iframeContainer}>
           {/* eslint-disable-next-line react/no-danger */}
-          <iframe title="Explorer HTML" srcDoc={html} style={styles.iframe} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+          <iframe title="Explorer HTML" srcDoc={htmlWithEnv} style={styles.iframe} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
         </View>
       </SafeAreaView>
     );
@@ -544,7 +521,7 @@ export default function ExplorerScreen() {
       <WebView
         ref={webViewRef}
         originWhitelist={["*"]}
-        source={{ html }}
+        source={{ html: htmlWithEnv }}
         style={styles.webview}
         javaScriptEnabled
         domStorageEnabled
