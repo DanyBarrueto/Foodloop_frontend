@@ -359,8 +359,10 @@ const html = `<!DOCTYPE html>
 								});
 								if(!resNew.ok){
 									let msg2=''; try{ const j2=await resNew.json(); msg2=j2 && (j2.message||j2.error||'') || ''; }catch(_){ }
+									if(resNew.status===409){ showPopup(msg2 || 'Ese email ya está en uso'); return; }
 									showPopup(msg2 || 'No se pudo crear el usuario.'); return;
 								}
+								// éxito
 								fetchUsersList();
 								closeEdit(); updateStats(); renderContent();
 								return;
