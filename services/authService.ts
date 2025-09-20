@@ -1,7 +1,8 @@
 // services/authService.ts
 import { storage } from '@/utils/storage';
 
-const API_BASE_URL = 'http://localhost:4001/foodloop';
+// Exported so other modules can reuse the same backend base URL
+export const API_BASE_URL = 'http://localhost:4001/foodloop';
 
 export interface LoginRequest {
   email: string;

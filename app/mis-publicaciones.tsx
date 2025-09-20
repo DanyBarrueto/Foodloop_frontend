@@ -68,12 +68,12 @@ const html = `<!DOCTYPE html>
     function formatDate(iso){ try{return new Date(iso).toLocaleDateString('es-ES')}catch(e){return ''} }
 
     // Navegación segura para botón Editar (web y nativo)
-    function goEdit(){
+    function goEdit(id){
       try {
         if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'navigate', path: '/editar-publicacion' }));
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'navigate', path: '/editar-publicacion?id='+encodeURIComponent(id) }));
         } else if (window.top) {
-          window.top.location.href = '/editar-publicacion';
+          window.top.location.href = '/editar-publicacion?id='+encodeURIComponent(id);
         }
       } catch (e) { /* noop */ }
     }
@@ -137,7 +137,7 @@ const html = `<!DOCTYPE html>
         parts.push('</div>');
     parts.push('<div class="flex items-center justify-between">');
         parts.push('<div class="flex items-center gap-2">');
-    parts.push('<button class="btn-secondary" onclick="goEdit(); return false;">✏️ Editar</button>');
+  parts.push('<button class="btn-secondary" onclick="goEdit('+post.id+'); return false;">✏️ Editar</button>');
         parts.push('<button class="btn-warning" onclick="event.preventDefault()">⏸️ '+(post.status==='paused'?'Reanudar':'Pausar')+'</button>');
         parts.push('<button class="btn-danger" onclick="event.preventDefault()">🗑️ Eliminar</button>');
         parts.push('</div>');

@@ -125,6 +125,18 @@ const html = `<!DOCTYPE html>
 
 			function formatDate(iso){ try { return new Date(iso).toLocaleDateString('es-ES'); } catch(e){ return iso; } }
 
+			// Escapar caracteres peligrosos al inyectar en HTML
+			function escapeHtml(str){
+				try{
+					return String(str||'')
+						.replace(/&/g,'&amp;')
+						.replace(/</g,'&lt;')
+						.replace(/>/g,'&gt;')
+						.replace(/"/g,'&quot;')
+						.replace(/'/g,'&#039;');
+				}catch(_){ return ''; }
+			}
+
 			// Validación simple de email
 			function isValidEmail(email){
 				try{
@@ -206,12 +218,29 @@ const html = `<!DOCTYPE html>
 				} else if(state.activeTab==='publicaciones'){
 					html = '<div class="admin-table-container">'+
 					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📰 Gestión de Publicaciones</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="publicaciones">➕ Nueva Publicación</button></div>'+
-					'<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>ID</th><th>Título</th><th>Tipo</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>'+
-					state.data.publicaciones.map(p=>'<tr><td>'+p.id+'</td><td>'+p.titulo+'</td><td>'+p.tipo+'</td><td>'+badgeEstado(p.estado)+'</td><td>'+formatDate(p.fecha)+'</td><td class="flex flex-wrap gap-2">'+
+					'<div class="overflow-x-auto"><table class="admin-table w-full text-sm md:text-base"><thead><tr>'+
+					'<th class="px-3 py-2">ID</th>'+
+					'<th class="px-3 py-2">Título</th>'+
+					'<th class="px-3 py-2 hidden sm:table-cell">Categoría</th>'+
+					'<th class="px-3 py-2">Tipo</th>'+
+					'<th class="px-3 py-2">Cantidad</th>'+
+					'<th class="px-3 py-2">Fecha</th>'+
+					'<th class="px-3 py-2">Estado</th>'+
+					'<th class="px-3 py-2">Acciones</th>'+
+					'</tr></thead><tbody>'+
+					state.data.publicaciones.map(function(p){ return '<tr>'+
+					'<td class="px-3 py-2">'+p.id+'</td>'+
+					'<td class="px-3 py-2">'+(p.titulo||'')+'</td>'+
+					'<td class="px-3 py-2 hidden sm:table-cell">'+(p.categoriaNombre||'')+'</td>'+
+					'<td class="px-3 py-2">'+(p.tipo||'')+'</td>'+
+					'<td class="px-3 py-2">'+(p.cantidad!=null?p.cantidad:'')+'</td>'+
+					'<td class="px-3 py-2">'+((p.fecha && String(p.fecha).slice(0,10)) || '')+'</td>'+
+					'<td class="px-3 py-2">'+(p.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td>'+
+					'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
 					'<button class="admin-btn-secondary" data-action="edit" data-tipo="publicaciones" data-id="'+p.id+'">✏️ Editar</button>'+
-					'<button class="admin-btn-warning" data-action="toggle-publication" data-id="'+p.id+'"'+(p.estado==='expired'?' disabled':'')+'>'+(p.estado==='paused'?'▶️ Reanudar':'⏸️ Pausar')+'</button>'+
-					'<button class="admin-btn-danger" data-action="delete" data-tipo="publicaciones" data-id="'+p.id+'">🗑️ Eliminar</button>'+
-					'</td></tr>').join('')+
+					'<button class="admin-btn-warning" data-action="toggle-publication" data-id="'+p.id+'">'+(p.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
+					'</div></td>'+
+					'</tr>'; }).join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='transacciones'){
 					html = '<div class="admin-table-container">'+
@@ -237,10 +266,107 @@ const html = `<!DOCTYPE html>
 
 			function nextId(arr){ return arr.length ? Math.max.apply(null, arr.map(x=>x.id)) + 1 : 1; }
 
-			function openEdit(tipo, id){
+			async function openEdit(tipo, id){
 				state.edit = { open:true, tipo:tipo, id:id };
+				// Pre-cargar datos necesarios para selects
+				try{
+					if(tipo==='publicaciones'){
+						await fetchCategoriesList();
+						await fetchUsersList();
+						// Intentar obtener el detalle ANTES de abrir para prellenar descripción
+						try{
+							if (id!=null && AUTH_TOKEN) {
+								const res = await fetch(API_BASE_URL + '/publicaciones/' + id, { headers: { 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json' } });
+								if (res.ok) {
+									const data = await res.json();
+									if (data) {
+										const arr = state.data.publicaciones || [];
+										const idx = arr.findIndex(function(x){ return x && x.id===id; });
+										const mapped = {
+											id: (data.id_publicacion || data.id),
+											titulo: data.titulo || '',
+											descripcion: data.descripcion || '',
+											tipo: data.tipo || '',
+											cantidad: (data.cantidad!=null? data.cantidad : ''),
+											precio: (data.precio!=null? data.precio : 0),
+											fecha: (data.fecha_caducidad || data.fechaCaducidad || ''),
+											categoriaId: (data.categoria_id || data.categoriaId || null)
+										};
+										if (idx>-1) { arr[idx] = { ...arr[idx], ...mapped }; }
+									}
+								}
+							}
+						} catch(_){ /* noop */ }
+					}
+				}catch(_){ }
 				document.getElementById('modalOverlay').classList.add('show');
 				renderEditModal();
+				// Refuerzo: cargar la publicación individual para completar campos como descripción
+				try{
+					if (tipo==='publicaciones' && id!=null && AUTH_TOKEN) {
+						const res = await fetch(API_BASE_URL + '/publicaciones/' + id, { headers: { 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json' } });
+						if (res.ok) {
+							const data = await res.json();
+							if (data) {
+								// Actualizar el item en la lista local si existe
+								try {
+									const arr = state.data.publicaciones || [];
+									const idx = arr.findIndex(function(x){ return x && x.id===id; });
+									const mapped = {
+										id: (data.id_publicacion || data.id),
+										titulo: data.titulo || '',
+										descripcion: data.descripcion || '',
+										tipo: data.tipo || '',
+										cantidad: (data.cantidad!=null? data.cantidad : ''),
+										precio: (data.precio!=null? data.precio : 0),
+										fecha: (data.fecha_caducidad || data.fechaCaducidad || ''),
+										categoriaId: (data.categoria_id || data.categoriaId || null),
+										usuarioId: (data.usuario_id || data.usuarioId || (data.usuario && (data.usuario.id || data.usuario.id_usuario)) || null)
+									};
+									if (idx>-1) { arr[idx] = { ...arr[idx], ...mapped }; }
+								}catch(_){ }
+								// Re-render para que aparezca la descripción
+								renderEditModal();
+								// Además, setear el textarea directamente para mayor seguridad
+								try {
+									var desc = (data && (data.descripcion != null ? data.descripcion : data.description)) || '';
+									var textarea = document.getElementById('f_descripcion');
+									if (textarea && typeof textarea.value !== 'undefined') { textarea.value = String(desc); }
+									// Setear selects de usuario y categoría a los valores reales
+									var uid = (data && (data.usuario_id || data.usuarioId || (data.usuario && (data.usuario.id || data.usuario.id_usuario))));
+									var cid = (data && (data.categoria_id || data.categoriaId));
+									var selU = document.getElementById('f_usuarioId');
+									var selC = document.getElementById('f_categoriaId');
+									if (selU && uid!=null) {
+										try {
+											selU.value = String(uid);
+											// Si no existe la opción, crearla y seleccionarla
+											if (selU.value !== String(uid)) {
+												var optU = document.createElement('option');
+												optU.value = String(uid);
+												optU.textContent = 'Usuario #' + uid;
+												selU.appendChild(optU);
+												selU.value = String(uid);
+											}
+										} catch(_){}
+									}
+									if (selC && cid!=null) {
+										try {
+											selC.value = String(cid);
+											if (selC.value !== String(cid)) {
+												var optC = document.createElement('option');
+												optC.value = String(cid);
+												optC.textContent = 'Categoría #' + cid;
+												selC.appendChild(optC);
+												selC.value = String(cid);
+											}
+										} catch(_){}
+									}
+								} catch(_){ /* noop */ }
+							}
+						}
+					}
+				} catch(_){ /* noop */ }
 			}
 
 			function closeEdit(){ state.edit.open=false; document.getElementById('modalOverlay').classList.remove('show'); }
@@ -280,11 +406,27 @@ const html = `<!DOCTYPE html>
 					         '<div class="admin-form-group"><label class="admin-form-label">Descripción</label><textarea id="f_descripcion" class="admin-form-textarea">'+(g.descripcion||'')+'</textarea></div>'+
 					         '<div class="admin-form-group"><label class="admin-form-label">Estado</label><select id="f_estado" class="admin-form-select"><option '+(g.estado==='active'?'selected':'')+'>active</option><option '+(g.estado!=='active'?'selected':'')+'>inactive</option></select></div>';
 				} else if(t==='publicaciones'){
-					const p = id? data.publicaciones.find(x=>x.id===id) : { titulo:'', tipo:'donación', estado:'active', fecha: new Date().toISOString().slice(0,10) };
-					fields = '<div class="admin-form-group"><label class="admin-form-label">Título</label><input id="f_titulo" class="admin-form-input" value="'+(p.titulo||'')+'" /></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Tipo</label><select id="f_tipo" class="admin-form-select"><option '+(p.tipo==='donación'?'selected':'')+'>donación</option><option '+(p.tipo==='venta'?'selected':'')+'>venta</option></select></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Estado</label><select id="f_estado" class="admin-form-select"><option '+(p.estado==='active'?'selected':'')+'>active</option><option '+(p.estado==='paused'?'selected':'')+'>paused</option><option '+(p.estado==='expired'?'selected':'')+'>expired</option></select></div>'+
-					         '<div class="admin-form-group"><label class="admin-form-label">Fecha</label><input id="f_fecha" type="date" class="admin-form-input" value="'+(p.fecha||'')+'" /></div>';
+					const p = id? data.publicaciones.find(x=>x.id===id) : { usuarioId:null, categoriaId:null, titulo:'', descripcion:'', tipo:'donacion', cantidad:'', precio:0, fecha: new Date().toISOString().slice(0,10) };
+					var tipoVal = (p && p.tipo) ? String(p.tipo).toLowerCase() : 'donacion';
+					var fechaVal = (p && p.fecha) ? String(p.fecha).slice(0,10) : new Date().toISOString().slice(0,10);
+					fields = ''+
+					'<div class="admin-form-group"><label class="admin-form-label">Usuario</label>'+
+					'<select id="f_usuarioId" class="admin-form-select">'+
+					(data.usuarios||[]).map(function(u){ return '<option value="'+u.id+'" '+(p.usuarioId===u.id?'selected':'')+'>'+(u.nombre||('Usuario #'+u.id))+'</option>'; }).join('')+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Categoría</label>'+
+					'<select id="f_categoriaId" class="admin-form-select">'+
+					(data.categorias||[]).map(function(c){ return '<option value="'+c.id+'" '+(p.categoriaId===c.id?'selected':'')+'>'+(c.nombre||('Categoría #'+c.id))+'</option>'; }).join('')+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Título</label><input id="f_titulo" class="admin-form-input" value="'+escapeHtml(p.titulo||'')+'" /></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Descripción</label><textarea id="f_descripcion" class="admin-form-textarea">'+escapeHtml(p.descripcion||'')+'</textarea></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Tipo</label><select id="f_tipo" class="admin-form-select">'+
+					'<option value="donacion" '+(tipoVal.indexOf('don')===0?'selected':'')+'>Donación</option>'+
+					'<option value="venta" '+(tipoVal==='venta'?'selected':'')+'>Venta</option>'+
+					'</select></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Cantidad</label><input id="f_cantidad" class="admin-form-input" value="'+escapeHtml(p.cantidad!=null?p.cantidad:'')+'" /></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Precio (€)</label><input id="f_precio" type="number" step="0.01" class="admin-form-input" value="'+(p.precio!=null?p.precio:0)+'" /></div>'+
+					'<div class="admin-form-group"><label class="admin-form-label">Fecha de caducidad</label><input id="f_fecha" type="date" class="admin-form-input" value="'+fechaVal+'" /></div>';
 				} else if(t==='transacciones'){
 					const tnx = id? data.transacciones.find(x=>x.id===id) : { usuario:'', monto:0, estado:'pending', fecha: new Date().toISOString().slice(0,10) };
 					fields = '<div class="admin-form-group"><label class="admin-form-label">Usuario</label><input id="f_usuario" class="admin-form-input" value="'+(tnx.usuario||'')+'" /></div>'+
@@ -406,8 +548,35 @@ const html = `<!DOCTYPE html>
 					else { d.categorias.push({ id: nextId(d.categorias), ...v }); }
 				}
 				else if(t==='publicaciones'){
-					const v = { titulo:qs('f_titulo').value, tipo:qs('f_tipo').value, estado:qs('f_estado').value, fecha:qs('f_fecha').value };
-					if(id){ const i=d.publicaciones.findIndex(x=>x.id===id); d.publicaciones[i]={ ...d.publicaciones[i], ...v }; } else { d.publicaciones.push({ id: nextId(d.publicaciones), ...v }); }
+					const v = {
+						usuarioId: Number((qs('f_usuarioId') && qs('f_usuarioId').value) || 0),
+						categoriaId: Number((qs('f_categoriaId') && qs('f_categoriaId').value) || 0),
+						titulo: String(qs('f_titulo').value||'').trim(),
+						descripcion: String((qs('f_descripcion')&&qs('f_descripcion').value)||'').trim(),
+						tipo: String(qs('f_tipo').value||'').trim(),
+						cantidad: String((qs('f_cantidad')&&qs('f_cantidad').value)||''),
+						precio: Number((qs('f_precio')&&qs('f_precio').value)||0),
+						fechaCaducidad: String(qs('f_fecha').value||'').slice(0,10)
+					};
+					if(!v.titulo){ showPopup('El título es obligatorio.'); return; }
+					try{
+						if(AUTH_TOKEN){
+							if(id){
+								const payload = { ...v, fechaActualizacion: new Date().toISOString() };
+								const res = await fetch(API_BASE_URL + '/publicaciones/' + id, { method:'PUT', headers:{ 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+								if(!res.ok){ let msg=''; try{ const j=await res.json(); msg=j && (j.message||j.error)||''; }catch(_){ } showPopup(msg||'No se pudo guardar la publicación'); return; }
+								fetchPublicacionesList(); closeEdit(); renderContent(); return;
+							} else {
+								const payloadNew = { usuarioId: v.usuarioId, categoriaId: v.categoriaId, titulo: v.titulo, descripcion: v.descripcion, tipo: v.tipo, cantidad: v.cantidad, precio: v.precio, fechaCaducidad: v.fechaCaducidad };
+								const resNew = await fetch(API_BASE_URL + '/publicaciones', { method:'POST', headers:{ 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify(payloadNew) });
+								if(!resNew.ok){ let msg2=''; try{ const j2=await resNew.json(); msg2=j2 && (j2.message||j2.error)||''; }catch(_){ } showPopup(msg2||'No se pudo crear la publicación'); return; }
+								fetchPublicacionesList(); closeEdit(); renderContent(); return;
+							}
+						}
+					}catch(_){ showPopup('Ocurrió un error al guardar publicación'); return; }
+					// sin token, actualiza local
+					if(id){ const i=d.publicaciones.findIndex(function(x){ return x.id===id; }); if(i>-1){ d.publicaciones[i] = { ...d.publicaciones[i], ...v, fecha: v.fechaCaducidad }; } }
+					else { d.publicaciones.push({ id: nextId(d.publicaciones), ...v, fecha: v.fechaCaducidad }); }
 				}
 				else if(t==='transacciones'){
 					const v = { usuario:qs('f_usuario').value, monto:Number(qs('f_monto').value||0), estado:qs('f_estado').value, fecha:qs('f_fecha').value };
@@ -451,7 +620,24 @@ const html = `<!DOCTYPE html>
 				// Refrescar desde backend para asegurar consistencia
 				fetchUsersList();
 			}
-			function togglePublicationStatus(id){ const p = state.data.publicaciones.find(x=>x.id===id); if(!p || p.estado==='expired') return; p.estado = (p.estado==='paused') ? 'active' : 'paused'; updateStats(); renderContent(); }
+			async function togglePublicationStatus(id){
+				const p = state.data.publicaciones.find(function(x){ return x.id===id; });
+				if(!p) return;
+				const isActive = (p.estado==='active');
+				try{
+					if(AUTH_TOKEN){
+						await fetch(API_BASE_URL + '/publicaciones/' + id, {
+							method: 'PUT',
+							headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+							body: JSON.stringify({ estado: isActive ? 0 : 1 })
+						});
+					}
+				} catch(_){ /* noop */ }
+				// Actualiza UI local y refresca desde backend
+				p.estado = isActive ? 'inactive' : 'active';
+				renderContent();
+				fetchPublicacionesList();
+			}
 
 			function updateStats(){
 				const d = state.data;
@@ -525,6 +711,38 @@ const html = `<!DOCTYPE html>
 					const n = document.querySelector('#stats .admin-stats-card:nth-child(1) .text-3xl');
 					if(n) n.textContent = String(count);
 				} catch(e){ /* noop */ }
+			}
+
+			// Trae publicaciones y las mapea a la UI
+			async function fetchPublicacionesList(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					const res = await fetch(API_BASE_URL + '/publicaciones', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
+					if(!res.ok){ return; }
+					const data = await res.json();
+					if(!Array.isArray(data)){ return; }
+					// Mapa de categorías actuales id -> nombre
+					var catMap = {};
+					try{
+						(state.data.categorias || []).forEach(function(c){ if(c && c.id!=null){ catMap[c.id] = c.nombre || ''; } });
+					}catch(_){ }
+					const mapped = data.map(function(p){
+						var id = (p && (p.id_publicacion || p.id)) || 0;
+						var titulo = (p && p.titulo) || '';
+						var descripcion = (p && p.descripcion) || '';
+						var tipo = (p && p.tipo) || '';
+						var cantidad = (p && (p.cantidad!=null ? p.cantidad : p.stock)) || '';
+						var fecha = (p && (p.fecha_caducidad || p.fechaCaducidad || p.fecha)) || '';
+						var categoriaId = (p && (p.categoria_id || p.categoriaId || p.categoria)) || null;
+						var usuarioId = (p && (p.usuario_id || p.usuarioId || (p.usuario && (p.usuario.id || p.usuario.id_usuario)))) || null;
+						var categoriaNombre = (categoriaId!=null && catMap[categoriaId]) ? catMap[categoriaId] : '';
+						var est = Number(p && p.estado);
+						var uiEstado = (est === 1) ? 'active' : 'inactive';
+						return { id: id, titulo: titulo, descripcion: descripcion, tipo: tipo, cantidad: cantidad, fecha: fecha, categoriaId: categoriaId, categoriaNombre: categoriaNombre, usuarioId: usuarioId, estado: uiEstado };
+					}).sort(function(a,b){ return (a.id||0) - (b.id||0); });
+					state.data.publicaciones = mapped;
+					if(state.activeTab==='publicaciones'){ renderContent(); }
+				}catch(_){ }
 			}
 
 			// Trae lista de usuarios y mapea campos para la tabla
@@ -609,7 +827,7 @@ const html = `<!DOCTYPE html>
 				fetchCategoriesList();
 			}
 
-			function setActiveTab(tab){ state.activeTab = tab; document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-tab')===tab)); renderContent(); if(tab==='categorias'){ fetchCategoriesList(); } }
+			function setActiveTab(tab){ state.activeTab = tab; document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-tab')===tab)); renderContent(); if(tab==='categorias'){ fetchCategoriesList(); } if(tab==='publicaciones'){ fetchCategoriesList(); fetchPublicacionesList(); } }
 
 			function init(){
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
@@ -617,6 +835,7 @@ const html = `<!DOCTYPE html>
 				renderContent(); // Mostrar contenido inicial
 				fetchUsersList();
 				fetchPublicacionesActivas();
+				fetchPublicacionesList();
 				fetchTransaccionesCount();
 				fetchReportesPendientes();
 				fetchCategoriesList();
@@ -678,6 +897,7 @@ const html = `<!DOCTYPE html>
 				renderContent(); // Mostrar contenido inicial
 				fetchUsersList();
 				fetchPublicacionesActivas();
+				fetchPublicacionesList();
 				fetchTransaccionesCount();
 				fetchReportesPendientes();
 				fetchCategoriesList();

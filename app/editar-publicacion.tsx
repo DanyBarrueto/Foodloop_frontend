@@ -1,12 +1,82 @@
+import { useAuth } from '@/context/AuthContext';
+import { API_BASE_URL } from '@/services/authService';
 import EditarPublicacionCss from '@/styles/EditarPublicación';
 import embeddedCss from '@/styles/PaginaPrincipal';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Navbar from './navbar';
 
-const html = `<!DOCTYPE html>
+type BackendPublicacion = {
+	id: number;
+	usuarioId: number;
+	categoriaId: number;
+	titulo: string;
+	descripcion: string;
+	tipo: string; // 'donacion' | 'venta' | similar
+	cantidad: string;
+	precio: number;
+	fechaCaducidad?: string | Date;
+	estado: number; // 1 activa, 0 pausada (asumido)
+	usuario?: { telefono?: string; correo?: string; ubicacion?: string };
+	categoria?: { nombre?: string };
+};
+
+type EditFields = {
+	title: string;
+	description: string;
+	location: string;
+	quantity: string;
+	contact: string;
+	category: string; // slug: 'frutas-verduras' | 'panaderia' | ...
+	price: string;
+};
+
+function categoryToSlug(name?: string): string {
+	if (!name) return 'otros';
+	const n = name.trim().toLowerCase();
+	const map: Record<string, string> = {
+		'frutas y verduras': 'frutas-verduras',
+		'frutas': 'frutas-verduras',
+		'verduras': 'frutas-verduras',
+		'panaderia': 'panaderia',
+		'panadería': 'panaderia',
+		'lacteos': 'lacteos',
+		'lácteos': 'lacteos',
+		'carnes': 'carnes',
+		'comida preparada': 'comida-preparada',
+		'conservas': 'conservas',
+		'bebidas': 'bebidas',
+		'otros': 'otros',
+	};
+	return map[n] || 'otros';
+}
+
+function mapBackendToFields(p: BackendPublicacion | null): { fields: EditFields; initialType: 'donation' | 'sale'; initialStatus: 'activa' | 'pausada' } {
+	if (!p) {
+		return {
+			fields: { title: '', description: '', location: '', quantity: '', contact: '', category: 'otros', price: '' },
+			initialType: 'donation',
+			initialStatus: 'activa',
+		};
+	}
+	const initialType: 'donation' | 'sale' = p.tipo?.toLowerCase().includes('venta') ? 'sale' : 'donation';
+	const initialStatus: 'activa' | 'pausada' = p.estado === 1 ? 'activa' : 'pausada';
+	const fields: EditFields = {
+		title: p.titulo || '',
+		description: p.descripcion || '',
+		location: p.usuario?.ubicacion || '',
+		quantity: p.cantidad || '',
+		contact: p.usuario?.telefono || p.usuario?.correo || '',
+		category: categoryToSlug(p.categoria?.nombre),
+		price: p.precio != null ? String(p.precio) : '',
+	};
+	return { fields, initialType, initialStatus };
+}
+function buildHtml(payload: { id?: number; token?: string; fields: EditFields; initialType: 'donation' | 'sale'; initialStatus: 'activa' | 'pausada' }) {
+	const safeJson = JSON.stringify(payload).replace(/</g, '\\u003c');
+	return `<!DOCTYPE html>
 <html lang="es">
 <head>
 	<meta charset="UTF-8" />
@@ -148,6 +218,9 @@ const html = `<!DOCTYPE html>
 	</div>
 
 	<script>
+		// Datos iniciales inyectados desde React Native / Web
+		var __INITIAL__ = ${safeJson};
+		var API_BASE_URL = '${API_BASE_URL}';
 		var postType = 'donation';
 		var status = 'activa';
 		var fields = { title:'', description:'', location:'', quantity:'', contact:'', category:'frutas-verduras', price:'' };
@@ -202,18 +275,71 @@ const html = `<!DOCTYPE html>
 			// Botones de navegación
 			document.querySelectorAll('[data-nav]').forEach(function(b){ b.addEventListener('click', function(){ navigate(b.getAttribute('data-nav')); }); });
 			document.getElementById('cancelBtn').addEventListener('click', function(){ navigate('/mis-publicaciones'); });
-			// Envío
-			document.getElementById('editForm').addEventListener('submit', function(e){ e.preventDefault(); notify('Cambios guardados exitosamente.'); });
+			// Envío: PUT al backend
+			document.getElementById('editForm').addEventListener('submit', async function(e){
+				e.preventDefault();
+				try{
+					var id = __INITIAL__ && __INITIAL__.id; var token = __INITIAL__ && __INITIAL__.token;
+					if(!id || !token){ notify('Falta token o id de publicación'); return; }
+					var body = {
+						titulo: fields.title,
+						descripcion: fields.description,
+						cantidad: fields.quantity,
+						precio: Number(fields.price||0),
+						tipo: (postType==='sale'?'venta':'donacion'),
+						estado: (status==='activa'?1:0),
+						fechaActualizacion: new Date().toISOString()
+					};
+					var res = await fetch(API_BASE_URL + '/publicaciones/' + id, { method:'PUT', headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token }, body: JSON.stringify(body) });
+					if(res.ok){ notify('Cambios guardados exitosamente.'); }
+					else { var data = {}; try{ data = await res.json(); }catch{}; notify(data.message||'Error al guardar'); }
+				}catch(err){ notify('Error de conexión al guardar'); }
+			});
 
-			// Inicial
-			setType('donation'); setStatus('activa'); updatePreview();
+			// Prefill desde datos inyectados
+			var didPrefill = false;
+			if (__INITIAL__ && __INITIAL__.fields) {
+				fields = Object.assign(fields, __INITIAL__.fields);
+				['title','description','location','quantity','contact','category','price'].forEach(function(k){
+					var el = qs(k); if (!el) return; if (k==='category') { el.value = fields[k] || 'otros'; } else { el.value = fields[k] || ''; }
+				});
+				setType(__INITIAL__.initialType === 'sale' ? 'sale' : 'donation');
+				setStatus(__INITIAL__.initialStatus === 'pausada' ? 'pausada' : 'activa');
+				updatePreview();
+				didPrefill = true;
+			}
+
+			// Inicial por defecto si no hubo pre-carga
+			if (!didPrefill) { setType('donation'); setStatus('activa'); updatePreview(); }
 		});
 	</script>
 </body>
 </html>`;
-
+}
 export default function EditarPublicacionScreen(){
 	const webViewRef = React.useRef<WebView>(null);
+	const { id } = useLocalSearchParams<{ id?: string }>();
+	const { token } = useAuth();
+	const [payload, setPayload] = React.useState<{ id?: number; token?: string; fields: EditFields; initialType: 'donation' | 'sale'; initialStatus: 'activa' | 'pausada' }>(()=>({ id: undefined, token: undefined, fields: { title:'', description:'', location:'', quantity:'', contact:'', category:'otros', price:'' }, initialType: 'donation', initialStatus: 'activa' }));
+
+	React.useEffect(() => {
+		let aborted = false;
+		async function load() {
+			const pubId = Number(id);
+			setPayload(p => ({ ...p, id: pubId || undefined, token: token || undefined }));
+			if (!pubId || !token) { return; }
+			try {
+				const res = await fetch(`${API_BASE_URL}/publicaciones/${pubId}`, { headers: { Authorization: `Bearer ${token}` } });
+				if (!res.ok) return;
+				const data: BackendPublicacion = await res.json();
+				if (!aborted) setPayload(prev => ({ ...prev, ...mapBackendToFields(data) }));
+			} catch (e) {
+				console.warn('Error cargando publicación', e);
+			}
+		}
+		load();
+		return () => { aborted = true; };
+	}, [id, token]);
 
 	if (Platform.OS === 'web') {
 		React.useEffect(() => {
@@ -231,7 +357,7 @@ export default function EditarPublicacionScreen(){
 			<SafeAreaView style={styles.safe}>
 				<Navbar />
 				<View style={styles.iframeContainer}>
-					<iframe title="Editar Publicación" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+					<iframe title="Editar Publicación" srcDoc={buildHtml(payload)} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
 				</View>
 			</SafeAreaView>
 		);
@@ -243,7 +369,7 @@ export default function EditarPublicacionScreen(){
 			<WebView
 				ref={webViewRef}
 				originWhitelist={["*"]}
-				source={{ html }}
+				source={{ html: buildHtml(payload) }}
 				style={styles.webview}
 				javaScriptEnabled
 				domStorageEnabled
