@@ -1,3 +1,5 @@
+import { useAuth } from '@/context/AuthContext';
+import { API_BASE_URL as API_BASE } from '@/services/authService';
 import ConfiguracionUsuarioCss from '@/styles/ConfiguracionUsuario';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import { router } from 'expo-router';
@@ -18,9 +20,21 @@ const html = `<!DOCTYPE html>
 		body { margin:0; padding:0; font-family: 'Inter', sans-serif; }
 		${embeddedCss}
 		${ConfiguracionUsuarioCss}
+
+		/* Toast styles */
+		.toast-root { position: fixed; top: 16px; right: 16px; z-index: 99999; display: flex; flex-direction: column; gap: 8px; }
+		.toast { min-width: 240px; max-width: 360px; padding: 10px 14px; border-radius: 10px; box-shadow: 0 10px 20px rgba(0,0,0,0.08); font-size: 14px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(0,0,0,0.06); }
+		.toast-success { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+		.toast-error { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+		.toast-info { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
 	</style>
 </head>
 <body>
+  <script>
+    const API_BASE_URL = '__API_BASE_URL__';
+    const AUTH_TOKEN = '__AUTH_TOKEN__';
+    const CURRENT_USER_ID = '__CURRENT_USER_ID__';
+  </script>
 	<div class="flex items-center justify-center min-h-screen p-4 relative overflow-hidden bg-gradient-to-br from-green-50 via-blue-50 to-orange-50">
 		<div class="absolute top-10 left-10 text-6xl opacity-60 animate-bounce" style="animation-delay: 0s;">🥕</div>
 		<div class="absolute top-20 right-20 text-4xl opacity-60 animate-bounce" style="animation-delay: 1s;">🍞</div>
@@ -113,6 +127,10 @@ const html = `<!DOCTYPE html>
 	</div>
 
 	<script>
+		// Toast helpers (evitan alert/confirm bloqueados en sandbox)
+		function ensureToastRoot(){ var r=document.getElementById('toastRoot'); if(!r){ r=document.createElement('div'); r.id='toastRoot'; r.className='toast-root'; document.body.appendChild(r);} return r; }
+		function showToast(message, type){ var root=ensureToastRoot(); var el=document.createElement('div'); var icon = type==='success'?'✅':(type==='error'?'⚠️':'ℹ️'); el.className='toast '+(type==='success'?'toast-success':type==='error'?'toast-error':'toast-info'); el.innerHTML='<span>'+icon+'</span><span>'+String(message)+'</span>'; root.appendChild(el); setTimeout(function(){ try{ root.removeChild(el); }catch(e){} }, 3000); }
+
 		function checkPasswordStrength(password){
 			var strength = 0; var feedback = [];
 			if(password.length >= 8) { strength++; } else { feedback.push('Mínimo 8 caracteres'); }
@@ -132,18 +150,125 @@ const html = `<!DOCTYPE html>
 			else { hint.textContent = 'Contraseña fuerte 💪'; hint.className = 'text-xs text-green-500 mt-1'; }
 		}
 
-		function loadUser(){
-			// Simulación de datos existentes
-			return { entityType:'restaurant', entityName:'Demo Restaurante', email:'demo@foodconnect.com', phone:'+34 600 123 456', location:'Madrid', address:'Calle Falsa 123', newsletter:true };
+		// Utilidades
+		function debounce(fn, wait){ var t; return function(){ var ctx=this, args=arguments; clearTimeout(t); t=setTimeout(function(){ fn.apply(ctx,args); }, wait); }; }
+		function getFormData(){
+			return {
+				entityType: (document.getElementById('entityType')||{}).value||'',
+				entityName: (document.getElementById('entityName')||{}).value||'',
+				email: (document.getElementById('email')||{}).value||'',
+				phone: (document.getElementById('phone')||{}).value||'',
+				location: (document.getElementById('location')||{}).value||'',
+				address: (document.getElementById('address')||{}).value||'',
+				password: (document.getElementById('password')||{}).value||'',
+				confirmPassword: (document.getElementById('confirmPassword')||{}).value||''
+			};
 		}
-		function saveUser(userData){
-			console.log('Guardando usuario:', userData);
-			alert('✅ Datos actualizados correctamente');
+		function toBackendPayload(fd){
+			var base = {
+				tipoEntidad: fd.entityType,
+				nombreEntidad: fd.entityName,
+				correo: fd.email,
+				telefono: fd.phone,
+				ubicacion: fd.location,
+				direccion: fd.address
+			};
+			if (fd.password && fd.confirmPassword && fd.password === fd.confirmPassword){ base.password = fd.password; }
+			return base;
 		}
 
-		document.addEventListener('DOMContentLoaded', function(){
+		var LAST_SAVED = null; // Snapshot de últimos datos guardados (sin incluir password)
+
+		async function loadUser(){
+			try{
+				if(!API_BASE_URL || !AUTH_TOKEN || !CURRENT_USER_ID){
+					console.warn('Faltan credenciales para cargar usuario');
+					return null;
+				}
+				const res = await fetch(API_BASE_URL + '/users/' + encodeURIComponent(CURRENT_USER_ID), {
+					headers: { 'Accept':'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN }
+				});
+				if(!res.ok){ console.error('Error obteniendo usuario', res.status); return null; }
+				const u = await res.json();
+				var mapped = {
+					entityType: u.tipoEntidad || '',
+					entityName: u.nombreEntidad || '',
+					email: u.correo || '',
+					phone: u.telefono || '',
+					location: u.ubicacion || '',
+					address: u.direccion || '',
+					newsletter: false
+				};
+				LAST_SAVED = {
+					tipoEntidad: mapped.entityType,
+					nombreEntidad: mapped.entityName,
+					correo: mapped.email,
+					telefono: mapped.phone,
+					ubicacion: mapped.location,
+					direccion: mapped.address
+				};
+				return mapped;
+			}catch(e){ console.error('loadUser error', e); return null; }
+		}
+
+		async function saveUser(userData){
+			try{
+				if(!API_BASE_URL || !AUTH_TOKEN || !CURRENT_USER_ID){
+					alert('No hay sesión activa');
+					return;
+				}
+				const payload = toBackendPayload(userData);
+				const res = await fetch(API_BASE_URL + '/users/' + encodeURIComponent(CURRENT_USER_ID), {
+					method: 'PUT',
+					headers: { 'Content-Type':'application/json', 'Accept':'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+					body: JSON.stringify(payload)
+				});
+				const data = await res.json().catch(()=>({}));
+				if(!res.ok){
+					showToast('Error: ' + (data?.message || res.statusText), 'error');
+					return;
+				}
+				showToast('Datos actualizados correctamente', 'success');
+				// Actualizar snapshot (sin password)
+				LAST_SAVED = {
+					tipoEntidad: payload.tipoEntidad,
+					nombreEntidad: payload.nombreEntidad,
+					correo: payload.correo,
+					telefono: payload.telefono,
+					ubicacion: payload.ubicacion,
+					direccion: payload.direccion
+				};
+				try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type:'userUpdated' })); } catch(e) {}
+			}catch(e){ console.error('saveUser error', e); showToast('Error de conexión', 'error'); }
+		}
+
+		async function saveUserPartial(partialPayload){
+			try{
+				if(!API_BASE_URL || !AUTH_TOKEN || !CURRENT_USER_ID){ return; }
+				if(!partialPayload || Object.keys(partialPayload).length===0) return;
+				const res = await fetch(API_BASE_URL + '/users/' + encodeURIComponent(CURRENT_USER_ID), {
+					method: 'PUT',
+					headers: { 'Content-Type':'application/json', 'Accept':'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+					body: JSON.stringify(partialPayload)
+				});
+				const data = await res.json().catch(()=>({}));
+				if(!res.ok){ console.warn('Auto-guardado error:', data?.message || res.statusText); return; }
+				// Merge en snapshot
+				LAST_SAVED = Object.assign({}, LAST_SAVED || {}, {
+					tipoEntidad: typeof partialPayload.tipoEntidad==='string' ? partialPayload.tipoEntidad : (LAST_SAVED||{}).tipoEntidad,
+					nombreEntidad: typeof partialPayload.nombreEntidad==='string' ? partialPayload.nombreEntidad : (LAST_SAVED||{}).nombreEntidad,
+					correo: typeof partialPayload.correo==='string' ? partialPayload.correo : (LAST_SAVED||{}).correo,
+					telefono: typeof partialPayload.telefono==='string' ? partialPayload.telefono : (LAST_SAVED||{}).telefono,
+					ubicacion: typeof partialPayload.ubicacion==='string' ? partialPayload.ubicacion : (LAST_SAVED||{}).ubicacion,
+					direccion: typeof partialPayload.direccion==='string' ? partialPayload.direccion : (LAST_SAVED||{}).direccion
+				});
+				try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type:'userUpdated' })); } catch(e) {}
+			}catch(e){ console.warn('Auto-guardado fallo de red', e); }
+		}
+
+			document.addEventListener('DOMContentLoaded', async function(){
 			var form = document.getElementById('userForm');
-			var data = loadUser();
+			var data = await loadUser();
 			if(data){
 				document.getElementById('entityType').value = data.entityType || '';
 				document.getElementById('entityName').value = data.entityName || '';
@@ -155,6 +280,34 @@ const html = `<!DOCTYPE html>
 			}
 
 			document.getElementById('password').addEventListener('input', function(e){ checkPasswordStrength(e.target.value||''); });
+
+			// Autosave (debounced)
+			var autoSaveHandler = debounce(function(){
+				var fd = getFormData();
+				var payload = toBackendPayload(fd);
+				if(!LAST_SAVED){ LAST_SAVED = Object.assign({}, payload); return; }
+				var diff = {};
+				['tipoEntidad','nombreEntidad','correo','telefono','ubicacion','direccion'].forEach(function(k){
+					if(typeof payload[k] !== 'undefined' && String(payload[k]||'') !== String(LAST_SAVED[k]||'')){
+						diff[k] = payload[k];
+					}
+				});
+				// password solo si viene y coincide
+				if(fd.password && fd.confirmPassword && fd.password === fd.confirmPassword){ diff.password = fd.password; }
+				saveUserPartial(diff);
+			}, 800);
+
+			['entityType','entityName','email','phone','location','address'].forEach(function(id){
+				var el = document.getElementById(id);
+				if(!el) return;
+				var evt = (id==='entityType') ? 'change' : 'input';
+				el.addEventListener(evt, autoSaveHandler);
+			});
+			['password','confirmPassword'].forEach(function(id){
+				var el = document.getElementById(id);
+				if(!el) return;
+				el.addEventListener('input', autoSaveHandler);
+			});
 
 			form.addEventListener('submit', function(e){
 				e.preventDefault();
@@ -169,7 +322,7 @@ const html = `<!DOCTYPE html>
 					confirmPassword: (document.getElementById('confirmPassword')||{}).value||'',
 					newsletter: !!((document.getElementById('newsletter')||{}).checked)
 				};
-				if(formData.password && formData.password !== formData.confirmPassword){ alert('Las contraseñas no coinciden'); return; }
+				if(formData.password && formData.password !== formData.confirmPassword){ showToast('Las contraseñas no coinciden', 'error'); return; }
 				saveUser(formData);
 			});
 
@@ -178,19 +331,35 @@ const html = `<!DOCTYPE html>
 				try { if (window.top !== window && window.parent) window.parent.postMessage({ type:'navigate', path: '/explorador' }, '*'); } catch(e) {}
 			});
 
-			document.getElementById('deleteBtn').addEventListener('click', function(){
-				if(!confirm('¿Seguro que deseas eliminar tu cuenta? Esta acción no se puede deshacer.')) return;
-				alert('Tu cuenta ha sido eliminada (demo).');
-				try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type:'navigate', path: '/explorador' })); } catch(e) {}
-				try { if (window.top !== window && window.parent) window.parent.postMessage({ type:'navigate', path: '/explorador' }, '*'); } catch(e) {}
-			});
+			(function(){
+				var armed = false; var timer = null;
+				document.getElementById('deleteBtn').addEventListener('click', function(){
+					if(!armed){
+						armed = true; showToast('Pulsa nuevamente para confirmar eliminación', 'info');
+						clearTimeout(timer); timer = setTimeout(function(){ armed=false; }, 4000);
+						return;
+					}
+					armed = false; clearTimeout(timer);
+					showToast('Tu cuenta ha sido eliminada (demo)', 'success');
+					try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type:'navigate', path: '/explorador' })); } catch(e) {}
+					try { if (window.top !== window && window.parent) window.parent.postMessage({ type:'navigate', path: '/explorador' }, '*'); } catch(e) {}
+				});
+			})();
 		});
 	</script>
 </body>
 </html>`;
 
 export default function ConfiguracionUsuarioScreen(){
+	const { token, user, isLoading } = useAuth();
 	const webViewRef = React.useRef<WebView>(null);
+	const htmlWithEnv = React.useMemo(()=>{
+		const uid = user?.id ? String(user.id) : '';
+		return html
+		  .replace('__API_BASE_URL__', API_BASE)
+		  .replace('__AUTH_TOKEN__', token ?? '')
+		  .replace('__CURRENT_USER_ID__', uid);
+	}, [token, user]);
 
 	if (Platform.OS === 'web') {
 		React.useEffect(() => {
@@ -204,11 +373,21 @@ export default function ConfiguracionUsuarioScreen(){
 			return () => window.removeEventListener('message', onMessage);
 		}, []);
 
+		if (isLoading) {
+			return (
+				<SafeAreaView style={styles.safe}>
+					<Navbar />
+					<View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+						<div style={{ color: '#4b5563' }}>Cargando…</div>
+					</View>
+				</SafeAreaView>
+			);
+		}
 		return (
 			<SafeAreaView style={styles.safe}>
 				<Navbar />
 				<View style={styles.iframeContainer}>
-					<iframe title="Actualizar mis datos" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+					<iframe key={`cfg-web-${token ? token.slice(-8) : 'anon'}`} title="Actualizar mis datos" srcDoc={htmlWithEnv} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
 				</View>
 			</SafeAreaView>
 		);
@@ -218,9 +397,10 @@ export default function ConfiguracionUsuarioScreen(){
 		<SafeAreaView style={styles.safe}>
 			<Navbar />
 			<WebView
+				key={`cfg-native-${token ? token.slice(-8) : 'anon'}`}
 				ref={webViewRef}
 				originWhitelist={["*"]}
-				source={{ html }}
+				source={{ html: htmlWithEnv }}
 				style={styles.webview}
 				javaScriptEnabled
 				domStorageEnabled

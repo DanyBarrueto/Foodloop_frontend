@@ -160,27 +160,27 @@ const html = `<!DOCTYPE html>
 </html>`;
 
 export default function SolicitadasScreen(){
-	const webViewRef = React.useRef(null);
+	const webViewRef = React.useRef<WebView>(null);
 
 	if (Platform.OS === 'web') {
 		React.useEffect(() => {
-			function onMessage(e){
+			function onMessage(e: MessageEvent){
 				try{
-					const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+					const data = typeof e.data === 'string' ? JSON.parse(e.data as string) : (e.data as any);
 					if (data && data.type === 'navigate' && typeof data.path === 'string') {
-						router.push(data.path);
+						router.push(data.path as any);
 					}
 				}catch{}
 			}
-			window.addEventListener('message', onMessage);
-			return () => window.removeEventListener('message', onMessage);
+			window.addEventListener('message', onMessage as any);
+			return () => window.removeEventListener('message', onMessage as any);
 		}, []);
 
 		return (
 			<SafeAreaView style={styles.safe}>
 				<Navbar />
 				<View style={styles.iframeContainer}>
-					<iframe title="Publicaciones solicitadas" srcDoc={html} style={styles.iframe} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+					<iframe title="Publicaciones solicitadas" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
 				</View>
 			</SafeAreaView>
 		);
@@ -202,7 +202,7 @@ export default function SolicitadasScreen(){
 					try{
 						const data = JSON.parse(event.nativeEvent.data);
 						if(data?.type==='navigate' && typeof data.path==='string'){
-							router.push(data.path);
+							router.push(data.path as any);
 						}
 					}catch(e){}
 				}}
@@ -217,4 +217,3 @@ const styles = StyleSheet.create({
 	iframeContainer: { flex: 1, width: '100%' },
 	iframe: { borderWidth: 0, width: '100%', height: '100%' },
 });
-

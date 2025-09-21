@@ -234,13 +234,15 @@ const html = `<!DOCTYPE html>
             ubicacion: (u.ubicacion||u.ciudad||'')
           }; }
         });
-        // Filtrar activas y excluir las del usuario actual
+        // Filtrar solo publicaciones activas y excluir las del usuario actual
         const myId = CURRENT_USER_ID ? Number(CURRENT_USER_ID) : null;
         const onlyActiveFromOthers = (Array.isArray(pData)?pData:[]).filter(p=>{
           const estado = Number(p && p.estado);
-          const uid = (p && (p.usuario_id || p.usuarioId || (p.usuario && (p.usuario.id || p.usuario.id_usuario))));
-          if(estado !== 1) return false;
-          if(myId!=null && uid===myId) return false;
+          if (estado !== 1) return false;
+          if (myId != null) {
+            const uid = (p && (p.usuario_id || p.usuarioId || (p.usuario && (p.usuario.id || p.usuario.id_usuario))));
+            if (uid != null && Number(uid) === myId) return false;
+          }
           return true;
         });
         // Mapear a tarjetas
@@ -489,7 +491,7 @@ const html = `<!DOCTYPE html>
 </html>`;
 
 export default function ExplorerScreen() {
-  const { token, user } = useAuth();
+  const { token, user, isLoading } = useAuth();
   const webViewRef = React.useRef<WebView>(null);
 
   const handleNavbarMessage = (data: any) => {
@@ -506,12 +508,29 @@ export default function ExplorerScreen() {
   }, [token, user]);
 
   if (Platform.OS === 'web') {
+    if (isLoading) {
+      return (
+        <SafeAreaView style={styles.safe}>
+          <Navbar onMessage={handleNavbarMessage} />
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            {/* Loader simple mientras obtenemos token/usuario */}
+            <div style={{ color: '#4b5563' }}>Cargando…</div>
+          </View>
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView style={styles.safe}>
         <Navbar onMessage={handleNavbarMessage} />
         <View style={styles.iframeContainer}>
           {/* eslint-disable-next-line react/no-danger */}
-          <iframe title="Explorer HTML" srcDoc={htmlWithEnv} style={styles.iframe} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+          <iframe
+            key={`explorer-web-${token ? token.slice(-8) : 'anon'}`}
+            title="Explorer HTML"
+            srcDoc={htmlWithEnv}
+            style={styles.iframe}
+            sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation"
+          />
         </View>
       </SafeAreaView>
     );
@@ -521,6 +540,7 @@ export default function ExplorerScreen() {
     <SafeAreaView style={styles.safe}>
       <Navbar onMessage={handleNavbarMessage} />
       <WebView
+        key={`explorer-native-${token ? token.slice(-8) : 'anon'}`}
         ref={webViewRef}
         originWhitelist={["*"]}
         source={{ html: htmlWithEnv }}

@@ -54,9 +54,6 @@ const getNavbarHTML = (userState: number = 1) => {
           <button onclick="navigateTo('/publicar')" class="nav-link">
             Publicar
           </button>
-          <button onclick="navigateTo('/solicitadas')" class="nav-link">
-            Solicitadas
-          </button>
           ${userState === 2 ? `
           <button onclick="navigateTo('/admin')" class="nav-link admin-link">
             👑 Administrador
@@ -100,9 +97,6 @@ const getNavbarHTML = (userState: number = 1) => {
         </button>
         <button onclick="navigateTo('/publicar')" class="mobile-link">
           Publicar
-        </button>
-        <button onclick="navigateTo('/solicitadas')" class="mobile-link">
-          Solicitadas
         </button>
         ${userState === 2 ? `
         <button onclick="navigateTo('/admin')" class="mobile-link admin-link">
