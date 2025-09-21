@@ -1,12 +1,26 @@
+import { getCategorias } from '@/services/categoriaService';
+import { createPublicacion } from '@/services/publicacionService';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import PublicarCss from '@/styles/Publicar';
+import { storage } from '@/utils/storage';
 import { router } from 'expo-router';
 import React from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Navbar from './navbar';
 
-const html = `<!DOCTYPE html>
+function escapeHtml(str: string) {
+	return str
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#039;');
+}
+
+function buildHtml(categoryOptionsHtml: string) {
+	const todayISO = new Date().toISOString().split('T')[0];
+	return `<!DOCTYPE html>
 <html lang="es">
 <head>
 	<meta charset="UTF-8" />
@@ -42,7 +56,7 @@ const html = `<!DOCTYPE html>
 							<form id="pubForm" class="space-y-6">
 								<div>
 									<h3 class="text-lg font-semibold text-gray-800 mb-4">🎯 Tipo de Publicación</h3>
-									<div class="type-selector">
+									<div id="typeSelector" class="type-selector">
 										<button type="button" class="type-option donation" data-type="donation">
 											<div class="text-4xl mb-3">🤝</div>
 											<h4 class="text-lg font-bold text-gray-800 mb-2">Donación</h4>
@@ -65,14 +79,7 @@ const html = `<!DOCTYPE html>
 										<label class="block text-sm font-semibold text-gray-700 mb-2">🍽️ Categoría *</label>
 										<select id="category" class="select-field" required>
 											<option value="">Selecciona una categoría</option>
-											<option value="frutas-verduras">🥕 Frutas y Verduras</option>
-											<option value="panaderia">🍞 Panadería</option>
-											<option value="lacteos">🥛 Lácteos</option>
-											<option value="carnes">🥩 Carnes y Pescados</option>
-											<option value="comida-preparada">🍽️ Comida Preparada</option>
-											<option value="conservas">🥫 Conservas y Enlatados</option>
-											<option value="bebidas">🥤 Bebidas</option>
-											<option value="otros">📦 Otros</option>
+											${categoryOptionsHtml}
 										</select>
 									</div>
 								</div>
@@ -99,25 +106,14 @@ const html = `<!DOCTYPE html>
 										<label class="block text-sm font-semibold text-gray-700 mb-2">⚖️ Cantidad Aproximada</label>
 										<input id="quantity" type="text" class="input-field" placeholder="Ej: 5 kg, 20 unidades, 3 cajas..." />
 									</div>
-									<div id="expirationWrap" class="hidden">
+									<div id="expirationWrap">
 										<label class="block text-sm font-semibold text-gray-700 mb-2">📅 Fecha de Vencimiento</label>
-										<input id="expiration" type="date" class="input-field" />
+										<input id="expiration" type="date" class="input-field" min="${todayISO}" />
 									</div>
-									<div id="priceWrap" class="md:col-span-2 hidden">
+									<div id="priceWrap" class="md:col-span-2">
 										<label class="block text-sm font-semibold text-gray-700 mb-2">💶 Precio</label>
-										<input id="price" type="text" class="input-field" placeholder="Ej: 5€, 2€/kg, Precio a convenir..." />
+										<input id="price" type="number" step="0.01" min="0" inputmode="decimal" class="input-field" placeholder="Ej: 5.00, 2.50" />
 									</div>
-								</div>
-
-								<div>
-									<label class="block text-sm font-semibold text-gray-700 mb-2">📸 Imágenes (Opcional)</label>
-									<div id="fileUpload" class="file-upload">
-										<div class="text-4xl mb-4">📷</div>
-										<p class="text-gray-600 mb-2"><strong>Arrastra imágenes aquí</strong> o haz clic para seleccionar</p>
-										<p class="text-xs text-gray-500">Máximo 3 imágenes • JPG, PNG • Máximo 5MB cada una</p>
-										<input id="fileInput" type="file" accept="image/*" multiple hidden />
-									</div>
-									<div id="previewGrid" class="mt-4 grid grid-cols-3 gap-4"></div>
 								</div>
 
 								<div class="flex flex-col sm:flex-row gap-4 pt-6">
@@ -151,10 +147,55 @@ const html = `<!DOCTYPE html>
 		</main>
 	</div>
 
+	<!-- Simple modal popup for messages -->
+	<div id="popupOverlay" class="fixed inset-0 z-50 hidden bg-black/40 flex items-center justify-center p-4">
+		<div class="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
+			<div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+				<span class="text-2xl">ℹ️</span>
+				<h4 class="text-lg font-semibold text-gray-800">Aviso</h4>
+			</div>
+			<div class="px-6 py-5">
+				<p id="popupMessage" class="text-gray-700 leading-relaxed">Mensaje</p>
+			</div>
+			<div class="px-6 py-4 bg-gray-50 flex justify-end gap-3">
+				<button id="popupOk" class="btn-primary px-4 py-2">Entendido</button>
+			</div>
+		</div>
+	</div>
+
 	<script>
 		var postType = '';
-		var images = [];
-		var fileInput = null;
+		var lastSalePrice = '';
+		var popup = {
+			el: null,
+			msgEl: null,
+			okBtn: null,
+			focusTarget: null,
+			open: function(message, opts){
+				try{
+					this.el = this.el || document.getElementById('popupOverlay');
+					this.msgEl = this.msgEl || document.getElementById('popupMessage');
+					this.okBtn = this.okBtn || document.getElementById('popupOk');
+					if(this.msgEl) this.msgEl.textContent = String(message || '');
+					this.focusTarget = opts && opts.focus ? opts.focus : null;
+					if(this.el) this.el.classList.remove('hidden');
+				}catch(e){}
+			},
+			close: function(){
+				try{
+					(this.el || document.getElementById('popupOverlay')).classList.add('hidden');
+					if (this.focusTarget) {
+						var el = (typeof this.focusTarget === 'string') ? document.querySelector(this.focusTarget) : this.focusTarget;
+						if (el && typeof el.focus === 'function') el.focus();
+					}
+				}catch(e){}
+			}
+		};
+
+		function normalize(s){
+			// Reemplazar diacríticos de forma compatible con más motores JS
+			return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+		}
 
 		function updateTypeUI(){
 			var donationBtn = document.querySelector('[data-type="donation"]');
@@ -163,33 +204,77 @@ const html = `<!DOCTYPE html>
 			donationBtn.classList.add('donation');
 			saleBtn.classList.toggle('selected', postType==='sale');
 			saleBtn.classList.add('sale');
-			document.getElementById('expirationWrap').classList.toggle('hidden', postType!=='sale');
-			document.getElementById('priceWrap').classList.toggle('hidden', postType!=='sale');
+			// Gestionar el campo precio según tipo
+			var priceEl = document.getElementById('price');
+			if (priceEl) {
+				if (postType === 'donation') {
+					// guardar último precio de venta si estaba habilitado
+					if (!priceEl.disabled && priceEl.value && priceEl.value !== '0' && priceEl.value !== '0.0' && priceEl.value !== '0.00') {
+						lastSalePrice = priceEl.value;
+					}
+					priceEl.value = '0.00';
+					priceEl.disabled = true;
+					priceEl.setAttribute('aria-disabled', 'true');
+					priceEl.placeholder = 'No aplica en donación';
+					priceEl.classList.add('opacity-60', 'cursor-not-allowed');
+				} else {
+					priceEl.disabled = false;
+					priceEl.removeAttribute('aria-disabled');
+					priceEl.placeholder = 'Ej: 5.00, 2.50';
+					priceEl.classList.remove('opacity-60', 'cursor-not-allowed');
+					if (priceEl.value === '0' || priceEl.value === '0.0' || priceEl.value === '0.00') {
+						priceEl.value = lastSalePrice || '';
+					}
+				}
+			}
+			// La fecha de vencimiento ahora siempre está visible y el precio también; sólo validamos precio si es venta
 			renderPreview();
 		}
 
-		function categoryEmoji(category){
-			var emojis = { 'frutas-verduras':'🥕', panaderia:'🍞', lacteos:'🥛', carnes:'🥩', 'comida-preparada':'🍽️', conservas:'🥫', bebidas:'🥤', otros:'📦' };
-			return emojis[category] || '🍽️';
+		function categoryEmoji(categoryName){
+			var n = normalize(categoryName);
+			if(n.includes('fruta') || n.includes('verdura')) return '🥕';
+			if(n.includes('pan')) return '🍞';
+			if(n.includes('lact') || n.includes('leche') || n.includes('queso') ) return '🥛';
+			if(n.includes('carne') || n.includes('pesc')) return '🥩';
+			if(n.includes('preparad') || n.includes('cocin')) return '🍽️';
+			if(n.includes('conserv') || n.includes('enlat')) return '🥫';
+			if(n.includes('bebid') || n.includes('jug' ) ) return '🥤';
+			if(n.includes('otro')) return '📦';
+			return '🍽️';
 		}
 
 		function renderPreview(){
 			var isDonation = postType==='donation';
 			var title = (document.getElementById('title')||{}).value || '';
-			var category = (document.getElementById('category')||{}).value || '';
+			var categoryEl = document.getElementById('category');
+			var category = '';
+			if (categoryEl && categoryEl.options && categoryEl.selectedIndex >= 0) {
+				category = categoryEl.options[categoryEl.selectedIndex].textContent || '';
+			}
 			var description = (document.getElementById('description')||{}).value || '';
 			var location = (document.getElementById('location')||{}).value || '';
 			var contact = (document.getElementById('contact')||{}).value || '';
 			var quantity = (document.getElementById('quantity')||{}).value || '';
 			var expiration = (document.getElementById('expiration')||{}).value || '';
-			var price = (document.getElementById('price')||{}).value || '';
+			var priceInputVal = (document.getElementById('price')||{}).value || '';
+			var priceNum = null; // número para vista previa
+			if (priceInputVal) {
+				var cleanedPrev = String(priceInputVal).replace(/[^0-9,.-]/g,'').replace(',','.');
+				var parsedPrev = parseFloat(cleanedPrev);
+				if (isFinite(parsedPrev)) priceNum = parsedPrev; else priceNum = null;
+			}
 			var badgeClass = isDonation ? 'badge-donation' : 'badge-sale';
 			var badgeText = isDonation ? '🤝 Donación Gratuita' : '💰 Oferta Especial';
-			var expHtml = (!isDonation && expiration) ? '<div class="flex items-center gap-2 text-sm text-secondary-600 bg-secondary-50 px-3 py-1 rounded-full mb-2"><span>📅</span><span class="font-medium">Vence: '+new Date(expiration).toLocaleDateString('es-ES')+'</span></div>' : '';
-			var priceHtml = (!isDonation && price) ? '<div class="flex items-center gap-2 text-sm text-primary-600 bg-primary-50 px-3 py-1 rounded-full mb-2"><span>💶</span><span class="font-medium">'+price+'</span></div>' : '';
+			var expText = '';
+			if (expiration && expiration.indexOf('-')>0) {
+				var p = expiration.split('-');
+				if (p.length===3) { expText = p[2]+'/'+p[1]+'/'+p[0]; }
+			}
+			var expHtml = (expText) ? '<div class="flex items-center gap-2 text-sm text-secondary-600 bg-secondary-50 px-3 py-1 rounded-full mb-2"><span>📅</span><span class="font-medium">Vence: '+expText+'</span></div>' : '';
+			var priceHtml = (!isDonation && priceNum!==null) ? '<div class="flex items-center gap-2 text-sm text-primary-600 bg-primary-50 px-3 py-1 rounded-full mb-2"><span>💶</span><span class="font-medium">'+priceNum.toFixed(2)+'</span></div>' : '';
 			var qtyHtml = quantity ? '<div class="flex items-center gap-2 text-sm text-gray-600 mb-2"><span>⚖️</span><span>'+quantity+'</span></div>' : '';
 
-			var imgs = images.map(function(img){ return '<img src="'+img.url+'" alt="Preview" class="w-full h-32 object-cover rounded-lg" />'; }).join('');
 			var card = [
 				'<div class="post-card p-4">',
 					'<div class="flex items-center gap-3 mb-2">',
@@ -200,37 +285,14 @@ const html = `<!DOCTYPE html>
 						'</div>',
 					'</div>',
 					'<span class="'+badgeClass+'">'+badgeText+'</span>',
+					expHtml,
 					'<p class="text-gray-700 my-3 leading-relaxed">'+(description||'La descripción aparecerá aquí...')+'</p>',
 					qtyHtml,
-					expHtml,
 					priceHtml,
-					'<div class="grid grid-cols-3 gap-2">'+imgs+'</div>',
 					'<div class="text-sm text-gray-600 mt-2">📨 '+(contact||'Contacto')+'</div>',
 				'</div>'
 			].join('');
 			document.getElementById('previewCard').innerHTML = card;
-		}
-
-		function addFiles(fileList){
-			var arr = Array.prototype.slice.call(fileList||[]);
-			arr.slice(0, 3 - images.length).forEach(function(file){
-				var reader = new FileReader();
-				reader.onload = function(e){ images.push({ file: file, url: e.target.result }); renderPreviewGrid(); renderPreview(); };
-				reader.readAsDataURL(file);
-			});
-		}
-
-		function renderPreviewGrid(){
-			var grid = document.getElementById('previewGrid');
-			grid.innerHTML = images.map(function(img, idx){
-				return '<div class="relative"><img src="'+img.url+'" class="w-full h-24 object-cover rounded-lg" /><button type="button" class="remove-image" data-idx="'+idx+'" aria-label="Eliminar imagen">×</button></div>';
-			}).join('');
-			Array.prototype.forEach.call(grid.querySelectorAll('.remove-image'), function(btn){
-				btn.addEventListener('click', function(){
-					var i = parseInt(btn.getAttribute('data-idx'), 10);
-					images.splice(i,1); renderPreviewGrid(); renderPreview();
-				});
-			});
 		}
 
 		document.addEventListener('DOMContentLoaded', function(){
@@ -239,15 +301,70 @@ const html = `<!DOCTYPE html>
 			donationBtn.addEventListener('click', function(){ postType='donation'; updateTypeUI(); });
 			saleBtn.addEventListener('click', function(){ postType='sale'; updateTypeUI(); });
 
-			fileInput = document.getElementById('fileInput');
-			var fileUpload = document.getElementById('fileUpload');
-			fileUpload.addEventListener('click', function(){ fileInput && fileInput.click(); });
-			fileInput.addEventListener('change', function(e){ addFiles(e.target.files); });
-			fileUpload.addEventListener('dragover', function(e){ e.preventDefault(); fileUpload.classList.add('dragover'); });
-			fileUpload.addEventListener('dragleave', function(e){ e.preventDefault(); fileUpload.classList.remove('dragover'); });
-			fileUpload.addEventListener('drop', function(e){ e.preventDefault(); fileUpload.classList.remove('dragover'); addFiles(e.dataTransfer.files); });
+			// Event delegation to ensure clicks on inner elements also toggle selection
+			var typeSelector = document.getElementById('typeSelector');
+			if (typeSelector) {
+				typeSelector.addEventListener('click', function(e){
+					var target = e.target;
+					// @ts-ignore - closest is supported in browser
+					var option = target && target.closest ? target.closest('[data-type]') : null;
+					if (option && option.getAttribute) {
+						var t = option.getAttribute('data-type');
+						if (t === 'donation' || t === 'sale') {
+							e.preventDefault();
+							postType = t;
+							updateTypeUI();
+						}
+					}
+				});
+			}
 
 			Array.prototype.forEach.call(document.querySelectorAll('#title,#category,#description,#location,#contact,#quantity,#expiration,#price'), function(el){ el.addEventListener('input', renderPreview); });
+
+			// Enforce max 2 decimals for price input and normalize separators
+			function clampPrice(val){
+				var s = String(val || '').replace(/[^0-9.,-]/g, '');
+				// normalize comma to dot
+				s = s.replace(/,/g, '.');
+				// keep only first dot
+				var parts = s.split('.');
+				if (parts.length > 2) {
+					s = parts[0] + '.' + parts.slice(1).join('');
+					parts = s.split('.');
+				}
+				if (parts.length === 2) {
+					parts[1] = parts[1].slice(0, 2);
+					s = parts[0] + (parts[1].length ? '.' + parts[1] : '');
+				}
+				return s;
+			}
+
+			var priceEl = document.getElementById('price');
+			if (priceEl) {
+				priceEl.addEventListener('input', function(e){
+					var v = clampPrice(e.target && e.target.value);
+					if (e.target && v !== e.target.value) e.target.value = v;
+					renderPreview();
+				});
+				priceEl.addEventListener('blur', function(e){
+					var raw = (e.target && e.target.value) ? String(e.target.value) : '';
+					var cleaned = raw.replace(/[^0-9,.-]/g,'').replace(/,/g,'.');
+					var num = parseFloat(cleaned);
+					if (isFinite(num)) {
+						// format to 2 decimals on blur
+						e.target.value = num.toFixed(2);
+					} else {
+						e.target.value = '';
+					}
+					renderPreview();
+				});
+			}
+
+			// Popup wire
+			var overlay = document.getElementById('popupOverlay');
+			var ok = document.getElementById('popupOk');
+			if (ok) ok.addEventListener('click', function(){ popup.close(); });
+			if (overlay) overlay.addEventListener('click', function(e){ if (e.target === overlay) popup.close(); });
 
 			// Vista previa se actualiza en tiempo real via eventos 'input'
 			document.getElementById('cancelBtn').addEventListener('click', function(){
@@ -259,8 +376,52 @@ const html = `<!DOCTYPE html>
 				e.preventDefault();
 				var title = (document.getElementById('title')||{}).value || '';
 				var description = (document.getElementById('description')||{}).value || '';
-				if(title.length < 3 || description.length < 20){ alert('Completa título (>=3) y descripción (>=20).'); return; }
-				alert('Publicación creada (demo).');
+				var categoryId = (document.getElementById('category')||{}).value || '';
+				var location = (document.getElementById('location')||{}).value || '';
+				var contact = (document.getElementById('contact')||{}).value || '';
+				var quantity = (document.getElementById('quantity')||{}).value || '';
+				var expiration = (document.getElementById('expiration')||{}).value || '';
+				var priceRaw = (document.getElementById('price')||{}).value || '';
+				var priceNum = null;
+				if (priceRaw) {
+					var cleaned = String(priceRaw).replace(/[^0-9,.-]/g,'').replace(',','.');
+					var parsed = parseFloat(cleaned);
+					if (isFinite(parsed)) priceNum = parsed; else priceNum = null;
+				}
+				title = title.trim(); description = description.trim();
+				if(title.length < 3 || description.length < 20){
+					var msg = '';
+					if (title.length < 3 && description.length < 20) {
+						msg = 'Faltan datos para continuar:\\n\\n• Título: escribe al menos 3 caracteres.\\n• Descripción: escribe al menos 20 caracteres explicando qué ofreces, estado y condiciones.';
+						popup.open(msg, { focus: (title.length < 3 ? '#title' : '#description') });
+						return;
+					}
+					if (title.length < 3) {
+						msg = 'El título es muy corto. Escribe un título descriptivo con al menos 3 caracteres.';
+						popup.open(msg, { focus: '#title' });
+						return;
+					}
+					if (description.length < 20) {
+						msg = 'La descripción es muy breve. Indica detalles como cantidad, estado del alimento y cómo entregarlo (mínimo 20 caracteres).';
+						popup.open(msg, { focus: '#description' });
+						return;
+					}
+				}
+				if(!categoryId){ popup.open('Selecciona la categoría que mejor describa tu publicación.', { focus: '#category' }); return; }
+				if(!postType){ popup.open('Elige si es una Donación o una Venta tocando una de las dos opciones de arriba.', { focus: '#typeSelector' }); return; }
+				if(postType==='sale' && (priceNum===null)) { popup.open('Para Venta, ingresa un precio válido (por ejemplo: 5.00).', { focus: '#price' }); return; }
+				var payload = {
+					categoriaId: Number(categoryId),
+					titulo: title,
+					descripcion: description,
+					tipo: (postType==='sale' ? 'venta' : 'donacion'),
+					cantidad: quantity || '',
+					precio: (postType==='sale' && priceNum!==null) ? priceNum : undefined,
+					fechaCaducidad: expiration || undefined,
+					extra: { location: location, contact: contact }
+				};
+				try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type:'createPublicacion', payload: payload})); } catch(e) {}
+				try { if (window.top !== window && window.parent) { window.parent.postMessage({type:'createPublicacion', payload: payload}, '*'); } } catch(e) {}
 			});
 
 			// Inicial
@@ -271,17 +432,69 @@ const html = `<!DOCTYPE html>
 	</script>
 </body>
 </html>`;
+}
 
 export default function PublicarScreen() {
 	const webViewRef = React.useRef<WebView>(null);
+	const [htmlDoc, setHtmlDoc] = React.useState<string | null>(null);
+
+	React.useEffect(() => {
+		let mounted = true;
+				(async () => {
+			// Verificar token antes de cargar categorías
+			const token = await storage.getToken();
+			if (!token) {
+				// Si no hay token, redirigir a login y mostrar doc mínimo
+				try { router.push('/login' as any); } catch {}
+				const html = buildHtml('<option disabled>(Debe iniciar sesión)</option>');
+				if (mounted) setHtmlDoc(html);
+				return;
+			}
+			// Obtener categorías del backend y construir opciones con ID como value y nombre como etiqueta
+			const cats = await getCategorias();
+			const options = (cats && cats.length ? cats : [])
+			  .map(c => `<option value="${String(c.id)}">${escapeHtml(c.nombre)}</option>`)
+			  .join('');
+			// Fallback si no hay categorías
+						const fallback = !options ? `<option disabled>(Debe iniciar sesión o no hay categorías)</option>` : '';
+			const html = buildHtml(options + fallback);
+			if (mounted) setHtmlDoc(html);
+		})();
+		return () => { mounted = false; };
+	}, []);
 
 	if (Platform.OS === 'web') {
 			React.useEffect(() => {
-				function onMessage(e: MessageEvent) {
+				async function onMessage(e: MessageEvent) {
 					try {
 						const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
 						if (data?.type === 'navigate' && typeof data.path === 'string') {
 							router.push(data.path as any);
+							return;
+						}
+						if (data?.type === 'createPublicacion' && data.payload) {
+							const user = await storage.getUserData();
+							const usuarioId = Number(user?.id ?? user?.userId ?? 0);
+							if (!usuarioId) { alert('No autenticado'); return; }
+							const base = data.payload || {};
+							const resp = await createPublicacion({
+								usuarioId,
+								categoriaId: Number(base.categoriaId),
+								titulo: String(base.titulo || ''),
+								descripcion: String(base.descripcion || ''),
+								// Mantener español para compatibilidad con backend/listados
+								tipo: String(base.tipo || 'donacion'),
+								cantidad: typeof base.cantidad === 'string' ? base.cantidad : '',
+								precio: typeof base.precio === 'number' ? base.precio : undefined,
+								fechaCaducidad: base.fechaCaducidad || undefined,
+							});
+								if (resp.success) {
+									// show popup in iframe via postMessage back if desired; here we keep native alert as this handler runs in parent
+									alert('Publicación creada');
+									router.push('/mis-publicaciones' as any);
+								} else {
+									alert(resp.message || 'No se pudo crear la publicación');
+								}
 						}
 					} catch {}
 				}
@@ -294,7 +507,7 @@ export default function PublicarScreen() {
 					<Navbar />
 					<View style={styles.iframeContainer}>
 						{/* eslint-disable-next-line react/no-danger */}
-						<iframe title="Crear Publicación" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+						<iframe title="Crear Publicación" srcDoc={htmlDoc || buildHtml('')} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation allow-modals" />
 					</View>
 				</SafeAreaView>
 			);
@@ -306,17 +519,40 @@ export default function PublicarScreen() {
 			<WebView
 				ref={webViewRef}
 				originWhitelist={["*"]}
-				source={{ html }}
+				source={{ html: htmlDoc || buildHtml('') }}
 				style={styles.webview}
 				javaScriptEnabled
 				domStorageEnabled
 				setSupportMultipleWindows={false}
 				androidLayerType={Platform.OS === 'android' ? 'software' : undefined}
-				onMessage={(event)=>{
+				onMessage={async (event)=>{
 					try{
 						const data = JSON.parse(event.nativeEvent.data);
 						if(data?.type==='navigate' && typeof data.path==='string'){
 							router.push(data.path as any);
+							return;
+						}
+						if (data?.type==='createPublicacion' && data.payload){
+							const user = await storage.getUserData();
+							const usuarioId = Number(user?.id ?? user?.userId ?? 0);
+							if (!usuarioId) { alert('No autenticado'); return; }
+							const base = data.payload || {};
+							const resp = await createPublicacion({
+								usuarioId,
+								categoriaId: Number(base.categoriaId),
+								titulo: String(base.titulo || ''),
+								descripcion: String(base.descripcion || ''),
+								tipo: String(base.tipo || 'donacion'),
+								cantidad: typeof base.cantidad === 'string' ? base.cantidad : '',
+								precio: typeof base.precio === 'number' ? base.precio : undefined,
+								fechaCaducidad: base.fechaCaducidad || undefined,
+							});
+							if (resp.success) {
+								alert('Publicación creada');
+								router.push('/mis-publicaciones' as any);
+							} else {
+								alert(resp.message || 'No se pudo crear la publicación');
+							}
 						}
 					}catch(e){ /* noop */ }
 				}}

@@ -31,6 +31,7 @@ type EditFields = {
 	contact: string;
 	category: string; // slug: 'frutas-verduras' | 'panaderia' | ...
 	price: string;
+	expiration?: string; // YYYY-MM-DD
 };
 
 function categoryToSlug(name?: string): string {
@@ -63,14 +64,24 @@ function mapBackendToFields(p: BackendPublicacion | null): { fields: EditFields;
 	}
 	const initialType: 'donation' | 'sale' = p.tipo?.toLowerCase().includes('venta') ? 'sale' : 'donation';
 	const initialStatus: 'activa' | 'pausada' = p.estado === 1 ? 'activa' : 'pausada';
+	// Normalizar fechaCaducidad a YYYY-MM-DD si existe
+	let expiration = '';
+	if (p && p.fechaCaducidad) {
+		const d = (typeof p.fechaCaducidad === 'string') ? p.fechaCaducidad : (p.fechaCaducidad as Date).toString();
+		// admitir formatos tipo 'YYYY-MM-DD' o ISO
+		const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+		if (m) { expiration = `${m[1]}-${m[2]}-${m[3]}`; }
+	}
 	const fields: EditFields = {
 		title: p.titulo || '',
 		description: p.descripcion || '',
 		location: p.usuario?.ubicacion || '',
-		quantity: p.cantidad || '',
+		// cantidad puede incluir unidades; mantener texto
+		quantity: (p.cantidad != null) ? String(p.cantidad) : '',
 		contact: p.usuario?.telefono || p.usuario?.correo || '',
 		category: categoryToSlug(p.categoria?.nombre),
 		price: p.precio != null ? String(p.precio) : '',
+		expiration,
 	};
 	return { fields, initialType, initialStatus };
 }
@@ -129,7 +140,7 @@ function buildHtml(payload: { id?: number; token?: string; fields: EditFields; i
 
 						<div class="mb-6">
 							<div class="flex gap-3 flex-wrap">
-								<button type="button" class="status-pill selected" data-status="activa">🟢 Activa</button>
+								<button type="button" class="status-pill selected" data-status="activa">🟢 Activo</button>
 								<button type="button" class="status-pill" data-status="pausada">⏸️ Pausada</button>
 							</div>
 						</div>
@@ -152,7 +163,7 @@ function buildHtml(payload: { id?: number; token?: string; fields: EditFields; i
 								</div>
 								<div>
 									<label class="label-modern">Cantidad</label>
-									<input id="quantity" type="number" min="0" class="input-modern w-full" placeholder="Ej. 10 kg, 5 unidades" />
+									<input id="quantity" type="text" class="input-modern w-full" placeholder="Ej: 5 kg, 20 unidades, 3 cajas..." />
 								</div>
 							</div>
 							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -172,6 +183,12 @@ function buildHtml(payload: { id?: number; token?: string; fields: EditFields; i
 										<option value="bebidas">Bebidas</option>
 										<option value="otros">Otros</option>
 									</select>
+								</div>
+							</div>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<label class="label-modern">Fecha de vencimiento</label>
+									<input id="expiration" type="date" class="input-modern w-full" />
 								</div>
 							</div>
 							<div id="priceWrap" class="hidden">
@@ -223,7 +240,7 @@ function buildHtml(payload: { id?: number; token?: string; fields: EditFields; i
 		var API_BASE_URL = '${API_BASE_URL}';
 		var postType = 'donation';
 		var status = 'activa';
-		var fields = { title:'', description:'', location:'', quantity:'', contact:'', category:'frutas-verduras', price:'' };
+	var fields = { title:'', description:'', location:'', quantity:'', contact:'', category:'frutas-verduras', price:'', expiration:'' };
 		var emojiMap = { 'frutas-verduras':'🥕','panaderia':'🍞','lacteos':'🥛','carnes':'🥩','comida-preparada':'🍽️','conservas':'🥫','bebidas':'🥤','otros':'📦' };
 
 		function qs(id){ return document.getElementById(id); }
@@ -234,7 +251,7 @@ function buildHtml(payload: { id?: number; token?: string; fields: EditFields; i
 				qs('pLoc').textContent = fields.location || 'Ubicación';
 				qs('pQty').textContent = fields.quantity || 'Cantidad';
 				qs('pContact').textContent = fields.contact || 'Contacto';
-				qs('pStatus').textContent = 'Estado: ' + (status === 'activa' ? 'Activa' : 'Pausada');
+				qs('pStatus').textContent = 'Estado: ' + (status === 'activa' ? 'Activo' : 'Pausada');
 				var isSaleType = postType === 'sale';
 				var hasPrice = !!fields.price && Number(fields.price) > 0;
 				var badge = qs('badgeType');
@@ -267,7 +284,7 @@ function buildHtml(payload: { id?: number; token?: string; fields: EditFields; i
 			// Estado
 			document.querySelectorAll('.status-pill').forEach(function(btn){ btn.addEventListener('click', function(){ setStatus(btn.getAttribute('data-status')); }); });
 			// Campos
-			['title','description','location','quantity','contact','category','price'].forEach(function(k){
+			['title','description','location','quantity','contact','category','price','expiration'].forEach(function(k){
 				var el = qs(k);
 				if(!el) return;
 				el.addEventListener('input', function(){ fields[k] = el.value; updatePreview(); });
@@ -288,6 +305,7 @@ function buildHtml(payload: { id?: number; token?: string; fields: EditFields; i
 						precio: Number(fields.price||0),
 						tipo: (postType==='sale'?'venta':'donacion'),
 						estado: (status==='activa'?1:0),
+						fechaCaducidad: fields.expiration || undefined,
 						fechaActualizacion: new Date().toISOString()
 					};
 					var res = await fetch(API_BASE_URL + '/publicaciones/' + id, { method:'PUT', headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token }, body: JSON.stringify(body) });
@@ -300,7 +318,7 @@ function buildHtml(payload: { id?: number; token?: string; fields: EditFields; i
 			var didPrefill = false;
 			if (__INITIAL__ && __INITIAL__.fields) {
 				fields = Object.assign(fields, __INITIAL__.fields);
-				['title','description','location','quantity','contact','category','price'].forEach(function(k){
+				['title','description','location','quantity','contact','category','price','expiration'].forEach(function(k){
 					var el = qs(k); if (!el) return; if (k==='category') { el.value = fields[k] || 'otros'; } else { el.value = fields[k] || ''; }
 				});
 				setType(__INITIAL__.initialType === 'sale' ? 'sale' : 'donation');

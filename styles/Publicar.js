@@ -37,17 +37,22 @@ const PublicarCss = `
 
 /* Animaciones */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1, transform: translateY(0); } }
 @keyframes float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 33% { transform: translateY(-10px) rotate(1deg); } 66% { transform: translateY(5px) rotate(-1deg); } }
 
 /* Utilidades generales */
-.floating-element { animation: float 8s ease-in-out infinite; position: absolute; opacity: 0.6; }
+.floating-element { animation: float 8s ease-in-out infinite; position: absolute; opacity: 0.6; pointer-events: none; }
 .navbar { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255, 255, 255, 0.2); }
 
 /* Contenedores */
 .form-container { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 1.5rem; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); }
-.form-vista-previa { width: 16vw; }
+/* Preview panel width responsive instead of fixed 16vw */
+.form-vista-previa { width: 100%; max-width: clamp(280px, 26vw, 420px); }
 .preview-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 1rem; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); padding: 1rem; }
+/* Avoid text selection highlighting inside preview */
+.preview-card * { -webkit-user-select: none; -ms-user-select: none; user-select: none; }
+/* Ensure long words don’t wrap awkwardly */
+.preview-card { word-wrap: break-word; overflow-wrap: anywhere; }
 
 /* Campos de formulario */
 .input-field { width: 100%; padding: 1rem 1.25rem; border: 2px solid rgba(34, 197, 94, 0.2); border-radius: 0.75rem; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); font-size: 1rem; transition: all 0.3s ease; }
@@ -58,8 +63,8 @@ const PublicarCss = `
 .select-field:focus { outline: none; border-color: var(--primary-500); box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1); background: #fff; }
 
 /* Badges */
-.badge-donation { background: linear-gradient(135deg, var(--primary-500), var(--primary-600)); color: #fff; padding: 0.375rem 0.875rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-.badge-sale { background: linear-gradient(135deg, var(--secondary-500), var(--secondary-600)); color: #fff; padding: 0.375rem 0.875rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.badge-donation { background: linear-gradient(135deg, var(--primary-500), var(--primary-600)); color: #fff; padding: 0.375rem 0.875rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.1); display: inline-flex; align-items: center; white-space: nowrap; }
+.badge-sale { background: linear-gradient(135deg, var(--secondary-500), var(--secondary-600)); color: #fff; padding: 0.375rem 0.875rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.1); display: inline-flex; align-items: center; white-space: nowrap; }
 
 /* Botones */
 .btn-primary { background: linear-gradient(135deg, var(--primary-500), var(--primary-600)); color: #fff; padding: 1rem 2rem; border-radius: 0.75rem; font-weight: 600; border: none; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3); text-decoration: none; display: inline-block; }

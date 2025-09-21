@@ -1,8 +1,12 @@
 // services/authService.ts
 import { storage } from '@/utils/storage';
+import { Platform } from 'react-native';
 
 // Exported so other modules can reuse the same backend base URL
-export const API_BASE_URL = 'http://localhost:4001/foodloop';
+// Prefer env override; otherwise, adapt for Android emulator vs localhost
+const envBase = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_BASE_URL) || (globalThis as any).EXPO_PUBLIC_API_BASE_URL;
+const defaultHost = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+export const API_BASE_URL = (envBase && String(envBase)) || `http://${defaultHost}:4001/foodloop`;
 
 export interface LoginRequest {
   email: string;

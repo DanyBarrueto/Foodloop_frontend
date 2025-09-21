@@ -1,3 +1,5 @@
+import { useAuth } from '@/context/AuthContext';
+import { API_BASE_URL as API_BASE } from '@/services/authService';
 import MisPublicacionesCss from '@/styles/MisPublicaciones';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import { router } from 'expo-router';
@@ -6,18 +8,7 @@ import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Navbar from './navbar';
 
-const MOCK_POSTS = [
-  { id: 1, type: 'donation', title: 'Excedente de verduras frescas', description: 'Tenemos un excedente de verduras frescas de nuestra huerta. Incluye lechugas, tomates, zanahorias y pimientos. Todo en perfecto estado.', category: 'frutas-verduras', location: 'Madrid', contact: '📞 +34 600 123 456', quantity: '15 kg aprox.', status: 'active', createdAt: '2024-01-15' },
-  { id: 2, type: 'sale', title: 'Pan artesanal del día anterior', description: 'Pan artesanal de excelente calidad del día anterior. Perfecto para tostadas o para hacer pan rallado. Precio muy reducido.', category: 'panaderia', location: 'Barcelona', contact: '📧 panaderia@email.com', quantity: '20 barras', price: '1€/barra', expiration: '2024-01-18', status: 'active', createdAt: '2024-01-16' },
-  { id: 3, type: 'donation', title: 'Comida preparada - Cocido madrileño', description: 'Hemos preparado demasiado cocido madrileño para nuestro evento. Está recién hecho y en perfectas condiciones.', category: 'comida-preparada', location: 'Madrid', contact: '📱 WhatsApp: 600 987 654', quantity: '8 raciones', status: 'active', createdAt: '2024-01-17' },
-  { id: 4, type: 'sale', title: 'Productos lácteos próximos a vencer', description: 'Yogures, leche y quesos con fechas de vencimiento próximas pero en perfecto estado. Precios muy reducidos.', category: 'lacteos', location: 'Valencia', contact: '📞 +34 600 555 777', quantity: 'Varios productos', price: '50% descuento', expiration: '2024-01-20', status: 'paused', createdAt: '2024-01-14' },
-  { id: 5, type: 'donation', title: 'Frutas maduras para mermeladas', description: 'Frutas muy maduras ideales para hacer mermeladas, compotas o batidos. Incluye plátanos, manzanas y peras.', category: 'frutas-verduras', location: 'Sevilla', contact: '📧 fruteria@email.com', quantity: '10 kg', status: 'active', createdAt: '2024-01-16' },
-  { id: 6, type: 'donation', title: 'Conservas variadas', description: 'Conservas en buen estado que no vamos a consumir. Incluye legumbres, verduras y frutas en almíbar.', category: 'conservas', location: 'Bilbao', contact: '📞 +34 600 111 222', quantity: '25 latas', status: 'active', createdAt: '2024-01-13' },
-  { id: 7, type: 'sale', title: 'Carne fresca con descuento', description: 'Carne fresca de excelente calidad con fecha de vencimiento próxima. Perfecta para congelar.', category: 'carnes', location: 'Zaragoza', contact: '📱 +34 600 333 444', quantity: '5 kg', price: '8€/kg', expiration: '2024-01-12', status: 'expired', createdAt: '2024-01-10' },
-  { id: 8, type: 'donation', title: 'Bebidas variadas', description: 'Refrescos y zumos que sobran de nuestro evento. Todas las bebidas están en perfecto estado.', category: 'bebidas', location: 'Granada', contact: '📧 eventos@email.com', quantity: '30 botellas', status: 'active', createdAt: '2024-01-17' },
-];
-
-const MOCK_JSON = JSON.stringify(MOCK_POSTS).replace(/</g, '\u003c');
+// Variables serán inyectadas por React más abajo
 
 const html = `<!DOCTYPE html>
 <html lang="es">
@@ -34,6 +25,12 @@ const html = `<!DOCTYPE html>
   </style>
 </head>
 <body>
+  <script>
+    // Inyectado desde React
+    const API_BASE_URL = '__API_BASE_URL__';
+    const AUTH_TOKEN = '__AUTH_TOKEN__';
+    const CURRENT_USER_ID = '__CURRENT_USER_ID__';
+  </script>
   <div class="min-h-screen relative" style="background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 50%, #fff7ed 100%);">
     <div class="floating-element top-10 left-10 text-6xl" style="animation-delay: 0s;">🥕</div>
     <div class="floating-element top-20 right-20 text-4xl" style="animation-delay: 1s;">🍞</div>
@@ -58,14 +55,70 @@ const html = `<!DOCTYPE html>
   </div>
 
   <script>
-    var MOCK_POSTS = ${MOCK_JSON};
-    var state = { posts: MOCK_POSTS.slice(), filter: 'all' };
+    var state = { posts: [], filter: 'all' };
 
     function categoryEmoji(category){ var e={ 'frutas-verduras':'🥕', panaderia:'🍞', lacteos:'🥛', carnes:'🥩', 'comida-preparada':'🍽️', conservas:'🥫', bebidas:'🥤', otros:'📦' }; return e[category]||'🍽️'; }
+    function statusLabel(code){ if(code==='active') return 'Activo'; if(code==='paused') return 'Pausado'; if(code==='expired') return 'Vencido'; return code||''; }
     function counts(){ var p=state.posts; return { all:p.length, donation:p.filter(function(x){return x.type==='donation'}).length, sale:p.filter(function(x){return x.type==='sale'}).length, active:p.filter(function(x){return x.status==='active'}).length, paused:p.filter(function(x){return x.status==='paused'}).length, expired:p.filter(function(x){return x.status==='expired'}).length }; }
     function stats(){ var p=state.posts; return { total:p.length, active:p.filter(function(x){return x.status==='active'}).length, donations:p.filter(function(x){return x.type==='donation'}).length, sales:p.filter(function(x){return x.type==='sale'}).length }; }
     function filtered(){ var p=state.posts,f=state.filter; if(f==='all')return p; if(f==='donation'||f==='sale')return p.filter(function(x){return x.type===f}); return p.filter(function(x){return x.status===f}); }
-    function formatDate(iso){ try{return new Date(iso).toLocaleDateString('es-ES')}catch(e){return ''} }
+    function formatDate(iso){ try{ if(!iso) return ''; var s=String(iso); var m=/(\d{4}-\d{2}-\d{2})/.exec(s); if(m) return m[1]; var d=new Date(s); if(!isNaN(d.getTime())) return d.toLocaleDateString('es-ES'); return s; }catch(e){return ''} }
+
+    // Navegación
+    function navigateTo(path){
+      try{
+        if(window.ReactNativeWebView && window.ReactNativeWebView.postMessage){ window.ReactNativeWebView.postMessage(JSON.stringify({ type:'navigate', path })); }
+        else if(window.top){ window.top.location.href = path; }
+      }catch(_){ }
+    }
+
+    async function fetchMyPosts(){
+      try{
+        if(!API_BASE_URL || !CURRENT_USER_ID) { state.posts = []; render(); return; }
+        const headers = { 'Accept':'application/json', ...(AUTH_TOKEN?{ 'Authorization':'Bearer '+AUTH_TOKEN }: {}) };
+        const [pRes, cRes, uRes] = await Promise.all([
+          fetch(API_BASE_URL + '/publicaciones', { headers }),
+          fetch(API_BASE_URL + '/categorias', { headers }),
+          fetch(API_BASE_URL + '/users', { headers })
+        ]);
+        const pData = pRes.ok ? await pRes.json() : [];
+        const cData = cRes.ok ? await cRes.json() : [];
+        const uData = uRes.ok ? await uRes.json() : [];
+        var catMap = {}; (Array.isArray(cData)?cData:[]).forEach(function(c){ var id=(c && (c.id_categoria||c.id)); if(id!=null){ catMap[id] = c.nombre || ('Categoría #'+id); } });
+        var userMap = {}; (Array.isArray(uData)?uData:[]).forEach(function(u){ var id=(u && (u.id_usuario||u.id)); if(id!=null){ userMap[id] = { nombre:(u.nombre_entidad||u.nombreEntidad||u.nombre||('Usuario #'+id)), ubicacion:(u.ubicacion||u.ciudad||''), contacto:(u.correo||'') }; } });
+        var myId = Number(CURRENT_USER_ID);
+        var today = new Date(); today.setHours(0,0,0,0);
+        state.posts = (Array.isArray(pData)?pData:[]).filter(function(p){ var uid=(p && (p.usuario_id||p.usuarioId|| (p.usuario && (p.usuario.id || p.usuario.id_usuario)))); return uid===myId; }).map(function(p){
+          var id = (p && (p.id_publicacion||p.id));
+          var uid = (p && (p.usuario_id||p.usuarioId|| (p.usuario && (p.usuario.id || p.usuario.id_usuario))));
+          var tipo = (p && p.tipo) ? String(p.tipo).toLowerCase() : '';
+          var categoriaId = (p && (p.categoria_id||p.categoriaId||p.categoria))||null;
+          var categoriaNombre = (categoriaId!=null && catMap[categoriaId]) ? catMap[categoriaId] : '';
+          var uinfo = (uid!=null && userMap[uid]) ? userMap[uid] : { nombre:'', ubicacion:'', contacto:'' };
+          var fechaCad = (p && (p.fecha_caducidad || p.fechaCaducidad || p.fecha)) || '';
+          var estNum = Number(p && p.estado);
+          // Derivar estado visual
+          var status = 'active';
+          if(estNum!==1) status = 'paused';
+          else if(fechaCad){ var s=String(fechaCad); var y=s.slice(0,4), mo=s.slice(5,7), d=s.slice(8,10); var dd=new Date(Number(y), Number(mo)-1, Number(d), 0,0,0); if(!isNaN(dd.getTime()) && dd < today) status='expired'; }
+          return {
+            id: id,
+            type: (tipo.indexOf('don')===0 ? 'donation' : (tipo==='venta' ? 'sale' : 'donation')),
+            title: (p && p.titulo) || '',
+            description: (p && p.descripcion) || '',
+            category: categoriaNombre || 'otros',
+            location: uinfo.ubicacion || '',
+            contact: uinfo.contacto || '',
+            quantity: (p && (p.cantidad!=null ? String(p.cantidad) : '')),
+            price: (p && (p.precio!=null ? String(p.precio) : '')),
+            expiration: fechaCad ? String(fechaCad).slice(0,10) : '',
+            status: status,
+            createdAt: new Date().toISOString().slice(0,10)
+          };
+        }).sort(function(a,b){ return (a.id||0)-(b.id||0); });
+        render();
+      }catch(e){ console.error('Error cargando mis publicaciones', e); state.posts=[]; render(); }
+    }
 
     // Navegación segura para botón Editar (web y nativo)
     function goEdit(id){
@@ -77,6 +130,21 @@ const html = `<!DOCTYPE html>
         }
       } catch (e) { /* noop */ }
     }
+
+    async function togglePublication(id){
+      try{
+        var post = (state.posts||[]).find(function(p){ return p && p.id===id; });
+        if(!post) return;
+        var nextActive = !(post.status==='active');
+        if(API_BASE_URL && AUTH_TOKEN){
+          await fetch(API_BASE_URL + '/publicaciones/' + id, { method:'PUT', headers:{ 'Authorization':'Bearer '+AUTH_TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' }, body: JSON.stringify({ estado: nextActive ? 1 : 0 }) });
+        }
+        post.status = nextActive ? 'active' : 'paused';
+        render();
+      }catch(_){ }
+    }
+
+    function newPublication(){ navigateTo('/publicar'); }
 
     function renderStats(){
       var s=stats(); var el=document.getElementById('stats');
@@ -99,7 +167,7 @@ const html = `<!DOCTYPE html>
           '<button class="filter-btn" data-filter="paused">⏸️ Pausadas ('+c.paused+')</button>',
           '<button class="filter-btn" data-filter="expired">⏰ Vencidas ('+c.expired+')</button>',
         '</div>',
-        '<a href="#" class="btn-primary" onclick="event.preventDefault()">➕ Nueva Publicación</a>'
+        '<a href="#" class="btn-primary" onclick="event.preventDefault(); newPublication();">➕ Nueva Publicación</a>'
       ].join('');
       Array.prototype.forEach.call(document.querySelectorAll('[data-filter]'), function(btn){ btn.addEventListener('click', function(){ state.filter = btn.getAttribute('data-filter'); render(); }); });
     }
@@ -111,7 +179,7 @@ const html = `<!DOCTYPE html>
           '<div class="text-6xl mb-6">📝</div>',
           '<h3 class="text-2xl font-bold text-gray-800 mb-4">No hay publicaciones</h3>',
           '<p class="text-gray-600 mb-6">Aún no has creado ninguna publicación. ¡Comienza a compartir alimentos ahora!</p>',
-          '<a href="#" class="btn-primary" onclick="event.preventDefault()">➕ Crear Primera Publicación</a>',
+          '<a href="#" class="btn-primary" onclick="event.preventDefault(); newPublication();">➕ Crear Primera Publicación</a>',
         '</div>'
       ].join(''); return; }
       var cards = list.map(function(post){ var isDonation=post.type==='donation'; var badgeClass=isDonation?'badge-donation':'badge-sale'; var badgeText=isDonation?'🤝 Donación':'💰 Venta'; var parts=[];
@@ -133,13 +201,12 @@ const html = `<!DOCTYPE html>
         if(post.expiration){ parts.push('<div>⏰ Vence: <span class="font-medium text-gray-800">'+formatDate(post.expiration)+'</span></div>'); }
         parts.push('<div>📅 Creado: <span class="font-medium text-gray-800">'+formatDate(post.createdAt)+'</span></div>');
         parts.push('<div>📨 Contacto: <span class="font-medium text-gray-800">'+post.contact+'</span></div>');
-        parts.push('<div>🔖 Estado: <span class="font-medium text-gray-800">'+post.status+'</span></div>');
+  parts.push('<div>🔖 Estado: <span class="font-medium text-gray-800">'+statusLabel(post.status)+'</span></div>');
         parts.push('</div>');
     parts.push('<div class="flex items-center justify-between">');
         parts.push('<div class="flex items-center gap-2">');
   parts.push('<button class="btn-secondary" onclick="goEdit('+post.id+'); return false;">✏️ Editar</button>');
-        parts.push('<button class="btn-warning" onclick="event.preventDefault()">⏸️ '+(post.status==='paused'?'Reanudar':'Pausar')+'</button>');
-        parts.push('<button class="btn-danger" onclick="event.preventDefault()">🗑️ Eliminar</button>');
+        parts.push('<button class="btn-warning" onclick="event.preventDefault(); togglePublication('+post.id+');">'+(post.status==='active'?'⏸️ Pausar':'▶️ Reanudar')+'</button>');
         parts.push('</div>');
         parts.push('</div>');
         parts.push('</div>');
@@ -148,13 +215,21 @@ const html = `<!DOCTYPE html>
     }
 
     function render(){ renderStats(); renderFilters(); renderContent(); }
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ Array.prototype.forEach.call(document.querySelectorAll('.animate-fade-in, .animate-slide-up'), function(el,i){ setTimeout(function(){ el.style.opacity='1'; el.style.transform='translateY(0)'; }, i*80); }); }, 200); render(); });
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ Array.prototype.forEach.call(document.querySelectorAll('.animate-fade-in, .animate-slide-up'), function(el,i){ setTimeout(function(){ el.style.opacity='1'; el.style.transform='translateY(0)'; }, i*80); }); }, 200); fetchMyPosts(); });
   </script>
 </body>
 </html>`;
 
 export default function MisPublicacionesScreen() {
+  const { token, user } = useAuth();
   const webViewRef = React.useRef<WebView>(null);
+  const htmlWithEnv = React.useMemo(()=>{
+    const uid = user?.id ? String(user.id) : '';
+    return html
+      .replace('__API_BASE_URL__', API_BASE)
+      .replace('__AUTH_TOKEN__', token ?? '')
+      .replace('__CURRENT_USER_ID__', uid);
+  }, [token, user]);
 
   if (Platform.OS === 'web') {
     return (
@@ -162,7 +237,7 @@ export default function MisPublicacionesScreen() {
         <Navbar />
         <View style={styles.iframeContainer}>
           {/* eslint-disable-next-line react/no-danger */}
-          <iframe title="Mis Publicaciones" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+          <iframe title="Mis Publicaciones" srcDoc={htmlWithEnv} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
         </View>
       </SafeAreaView>
     );
@@ -174,7 +249,7 @@ export default function MisPublicacionesScreen() {
       <WebView
         ref={webViewRef}
         originWhitelist={["*"]}
-        source={{ html }}
+        source={{ html: htmlWithEnv }}
         style={styles.webview}
         javaScriptEnabled
         domStorageEnabled
