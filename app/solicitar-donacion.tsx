@@ -1,11 +1,16 @@
+import { API_BASE_URL } from '@/services/authService';
+import { createTransaccion } from '@/services/transaccionService';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import SolicitarDonacionCss from '@/styles/SolicitarDonacion';
-import { useRouter } from 'expo-router';
+import { storage } from '@/utils/storage';
+import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-const html = `<!DOCTYPE html>
+function buildHtml(initial: any){
+  const safe = JSON.stringify(initial || {}).replace(/</g, '\\u003c');
+  return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -51,17 +56,17 @@ const html = `<!DOCTYPE html>
 
     <div class="product-info animate-slide-up">
       <div class="flex items-center gap-4 mb-3">
-        <div class="text-4xl">🥕</div>
+        <div id="pEmoji" class="text-4xl">🍽️</div>
         <div>
-          <h3 class="text-xl font-bold text-gray-800">Excedente de verduras frescas</h3>
-          <p class="text-sm text-gray-600">Comedor Solidario San José - Madrid</p>
+          <h3 id="pTitulo" class="text-xl font-bold text-gray-800">Publicación</h3>
+          <p id="pMeta" class="text-sm text-gray-600">Entidad - Ciudad</p>
           <div class="flex items-center gap-2 mt-2">
-            <span class="badge badge-green">Disponible hoy</span>
-            <span class="badge badge-accent">Prioridad media</span>
+            <span id="pTipo" class="badge badge-green">Donación</span>
+            <span id="pFecha" class="badge badge-accent hidden"></span>
           </div>
         </div>
       </div>
-      <p class="text-gray-700 text-sm">Tenemos una gran cantidad de verduras variadas: zanahorias, lechugas, tomates y pimientos. Perfectas para comedores sociales o familias necesitadas.</p>
+      <p id="pDesc" class="text-gray-700 text-sm"></p>
     </div>
 
     <div id="successMessage" class="success-message hidden">¡Solicitud enviada correctamente! El donante se pondrá en contacto contigo pronto.</div>
@@ -143,6 +148,7 @@ const html = `<!DOCTYPE html>
 
   <script>
     (function(){
+      var __INITIAL__ = ${safe};
       function qs(id){ return document.getElementById(id); }
       var form = qs('donationForm');
       var success = qs('successMessage');
@@ -151,6 +157,13 @@ const html = `<!DOCTYPE html>
       var btnBack = document.getElementById('btnBack');
       var btnCancel = document.getElementById('btnCancel');
       var navMsg = JSON.stringify({ type: 'navigate', path: '/explorador' });
+      var postMsg = function(obj){
+        try {
+          var rnwv = (window && window['ReactNativeWebView']) || (window['webkit'] && window['webkit']['messageHandlers'] && window['webkit']['messageHandlers']['ReactNativeWebView']);
+          if (rnwv && typeof rnwv.postMessage === 'function') { rnwv.postMessage(JSON.stringify(obj)); }
+        } catch(e){}
+        try { if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') { window.parent.postMessage(obj, '*'); } } catch(e){}
+      };
 
       function show(el){ el.classList.remove('hidden'); }
       function hide(el){ el.classList.add('hidden'); }
@@ -166,20 +179,71 @@ const html = `<!DOCTYPE html>
       if(btnBack){ btnBack.addEventListener('click', navigateToExplorer); }
       if(btnCancel){ btnCancel.addEventListener('click', navigateToExplorer); }
 
+      // Prefill publication data
+      try{
+        var p = __INITIAL__ && __INITIAL__.publicacion;
+        if(p){
+          qs('pTitulo').textContent = p.titulo || 'Publicación';
+          qs('pMeta').textContent = (p.entidad || 'Entidad') + (p.ubicacion ? ' - ' + p.ubicacion : '');
+          qs('pDesc').textContent = p.descripcion || '';
+          qs('pTipo').textContent = (p.tipo||'donacion').toLowerCase().includes('venta') ? 'Venta' : 'Donación';
+          var emoji = '🍽️';
+          var n = (p.categoriaNombre||'').toLowerCase();
+          if(n.indexOf('fruta')>-1||n.indexOf('verdura')>-1) emoji='🥕';
+          else if(n.indexOf('pan')>-1) emoji='🍞';
+          else if(n.indexOf('lact')>-1) emoji='🥛';
+          else if(n.indexOf('carn')>-1||n.indexOf('pesc')>-1) emoji='🥩';
+          else if(n.indexOf('preparad')>-1||n.indexOf('cocin')>-1) emoji='🍽️';
+          else if(n.indexOf('conserv')>-1||n.indexOf('enlat')>-1) emoji='🥫';
+          else if(n.indexOf('bebid')>-1) emoji='🥤';
+          qs('pEmoji').textContent = emoji;
+          if (p.fechaCaducidad) {
+            var m = String(p.fechaCaducidad).match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if(m){ qs('pFecha').textContent = 'Vence: '+m[3]+'/'+m[2]+'/'+m[1]; qs('pFecha').classList.remove('hidden'); }
+          }
+        }
+      }catch(e){}
+
       form.addEventListener('submit', function(e){
         e.preventDefault();
         hide(success); hide(error);
         if(!qs('terms').checked){ show(error); return; }
         submitBtn.disabled = true; submitBtn.classList.add('opacity-70');
-        setTimeout(function(){ show(success); submitBtn.disabled = false; submitBtn.classList.remove('opacity-70'); form.reset(); window.scrollTo({ top: 0, behavior: 'smooth' }); }, 800);
+        // Build payload and send to host to call backend
+        try {
+          var p = __INITIAL__ && __INITIAL__.publicacion;
+          if (!p) { show(error); submitBtn.disabled=false; submitBtn.classList.remove('opacity-70'); return; }
+          var payload = {
+            type: 'createTransaccion',
+            payload: {
+              publicacionId: Number(p.id),
+              donanteVendedorId: Number(p.usuarioId),
+              beneficiarioCompradorId: Number(__INITIAL__ && __INITIAL__.currentUserId || 0),
+              fechaTransaccion: new Date().toISOString(),
+              meta: {
+                deliveryPreference: (qs('deliveryPreference')||{}).value,
+                timePreference: (qs('timePreference')||{}).value,
+                economicSituation: (qs('economicSituation')||{}).value,
+                message: (qs('message')||{}).value,
+                termsAccepted: !!qs('terms').checked,
+              }
+            }
+          };
+          postMsg(payload);
+        } catch(err) {
+          show(error);
+          submitBtn.disabled = false; submitBtn.classList.remove('opacity-70');
+        }
       });
     })();
   </script>
 </body>
 </html>`;
+}
 
 export default function SolicitarDonacionScreen(){
-  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const [html, setHtml] = React.useState<string>('');
 
   // Web: escuchar mensajes del iframe y navegar
   React.useEffect(() => {
@@ -187,17 +251,61 @@ export default function SolicitarDonacionScreen(){
     const handler = (e: MessageEvent) => {
       let data: any = e?.data;
       if (typeof data === 'string') { try { data = JSON.parse(data); } catch {} }
-      if (data?.type === 'navigate' && typeof data.path === 'string') { router.push(data.path as any); }
+      if (data?.type === 'navigate' && typeof data.path === 'string') { router.push(data.path as any); return; }
+      if (data?.type === 'createTransaccion' && data.payload) {
+        (async () => {
+          const resp = await createTransaccion(data.payload);
+          if (resp.success) {
+            alert('Solicitud enviada correctamente');
+            router.push('/explorador' as any);
+          } else {
+            alert(resp.message || 'No se pudo enviar la solicitud');
+          }
+        })();
+      }
     };
     window.addEventListener('message', handler as any);
     return () => window.removeEventListener('message', handler as any);
-  }, [router]);
+  }, []);
+
+  React.useEffect(() => {
+    let aborted = false;
+    (async () => {
+      const pubId = Number(id);
+      const token = await storage.getToken();
+      const user = await storage.getUserData();
+      const currentUserId = Number(user?.id ?? user?.userId ?? 0);
+      let publicacion: any = null;
+      if (pubId && token) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/publicaciones/${pubId}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.ok) {
+            const p = await res.json();
+            publicacion = {
+              id: p.id,
+              usuarioId: p.usuarioId,
+              titulo: p.titulo,
+              descripcion: p.descripcion,
+              tipo: p.tipo,
+              categoriaNombre: p.categoria?.nombre,
+              fechaCaducidad: p.fechaCaducidad,
+              entidad: p.usuario?.nombreEntidad || p.usuario?.nombre_entidad || p.usuario?.nombre || '',
+              ubicacion: p.usuario?.ubicacion || p.usuario?.ciudad || '',
+            };
+          }
+        } catch {}
+      }
+      const initial = { publicacion, currentUserId };
+      if (!aborted) setHtml(buildHtml(initial));
+    })();
+    return () => { aborted = true; };
+  }, [id]);
 
   if (Platform.OS === 'web') {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.iframeContainer}>
-          <iframe title="SolicitarDonacion" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+          <iframe title="SolicitarDonacion" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation allow-modals" />
         </View>
       </SafeAreaView>
     );
@@ -211,10 +319,19 @@ export default function SolicitarDonacionScreen(){
         style={styles.webview}
         javaScriptEnabled
         domStorageEnabled
-        onMessage={(event) => {
+        onMessage={async (event) => {
           let data: any = event?.nativeEvent?.data;
           if (typeof data === 'string') { try { data = JSON.parse(data); } catch {} }
-          if (data?.type === 'navigate' && typeof data.path === 'string') { router.push(data.path as any); }
+          if (data?.type === 'navigate' && typeof data.path === 'string') { router.push(data.path as any); return; }
+          if (data?.type === 'createTransaccion' && data.payload) {
+            const resp = await createTransaccion(data.payload);
+            if (resp.success) {
+              alert('Solicitud enviada correctamente');
+              router.push('/explorador' as any);
+            } else {
+              alert(resp.message || 'No se pudo enviar la solicitud');
+            }
+          }
         }}
       />
     </SafeAreaView>

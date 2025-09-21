@@ -403,29 +403,31 @@ const html = `<!DOCTYPE html>
 
     // Manejar solicitudes
     function handleRequest(listingId) {
+      if (!listingId) return;
+      // Si ya se solicitó, no repetir
       if (requestedItems.has(listingId)) return;
-      
-      const listing = MOCK_LISTINGS.find(l => l.id === listingId);
+
+      // Buscar en las listas reales cargadas desde backend
+      const listing = (ALL_LISTINGS || []).find(l => String(l.id) === String(listingId))
+                    || (currentListings || []).find(l => String(l.id) === String(listingId));
       if (!listing) return;
 
-      // Si es compra (venta), redirigir a la pantalla de solicitar compra
+      // Navegar a la pantalla correspondiente con el id como query param
       if (listing.foodType === 'venta') {
-        navigateTo('/solicitar-compra');
+        navigateTo('/solicitar-compra?id=' + encodeURIComponent(listing.id));
         return;
       }
-
-      // Si es donación, redirigir a la pantalla de solicitar donación
       if (listing.foodType === 'donacion') {
-        navigateTo('/solicitar-donacion');
+        navigateTo('/solicitar-donacion?id=' + encodeURIComponent(listing.id));
         return;
       }
 
-      // Fallback (por si se agrega otro tipo en el futuro)
+      // Fallback (por si se agrega otro tipo en el futuro); mostrar confirmación local
       requestedItems.add(listingId);
       const actionText = 'solicitud';
-      const message = \`Tu \${actionText} para "\${listing.title}" de \${listing.entityName} ha sido enviada correctamente.\`;
+      const message = 'Tu ' + actionText + ' para "' + listing.title + '" de ' + listing.entityName + ' ha sido enviada correctamente.';
       showModal(message);
-      renderListings(); // Re-render para actualizar el botón
+      renderListings();
     }
 
     // Modal functions

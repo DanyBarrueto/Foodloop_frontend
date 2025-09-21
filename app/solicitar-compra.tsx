@@ -1,11 +1,16 @@
+import { API_BASE_URL } from '@/services/authService';
+import { createTransaccion } from '@/services/transaccionService';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import SolicitarCompraCss from '@/styles/SolicitarCompra';
-import { useRouter } from 'expo-router';
+import { storage } from '@/utils/storage';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-const html = `<!DOCTYPE html>
+function buildHtml(initial: any){
+const safe = JSON.stringify(initial || {}).replace(/</g, '\\u003c');
+return `<!DOCTYPE html>
 <html lang="es">
 <head>
 	<meta charset="UTF-8" />
@@ -50,17 +55,17 @@ const html = `<!DOCTYPE html>
 		<!-- Product Info -->
 		<div class="product-info animate-slide-up">
 			<div class="flex items-center gap-4 mb-3">
-				<div class="text-4xl">🥐</div>
+				<div id="pEmoji" class="text-4xl">🍽️</div>
 				<div>
-					<h3 class="text-xl font-bold text-gray-800">Lotes de bollería a punto de caducar</h3>
-					<p class="text-sm text-gray-600">Panadería La Espiga Dorada - Barcelona</p>
+					<h3 id="pTitulo" class="text-xl font-bold text-gray-800">Publicación</h3>
+					<p id="pMeta" class="text-sm text-gray-600">Entidad - Ciudad</p>
 					<div class="flex items-center gap-2 mt-2">
-						<span class="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">💰 Oferta Especial</span>
-						<span class="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">📅 Vence: 15/08/2025</span>
+						<span id="pTipo" class="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-medium">💰 Venta</span>
+						<span id="pFecha" class="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium hidden"></span>
 					</div>
 				</div>
 			</div>
-			<p class="text-gray-700 text-sm">Bollería variada con fecha de vencimiento próxima (2 días): croissants, magdalenas, donuts y pasteles. Descuento del 50% sobre precio original.</p>
+			<p id="pDesc" class="text-gray-700 text-sm"></p>
 		</div>
 
 		<div id="alertSuccess" class="success-message">¡Tu solicitud fue enviada correctamente!</div>
@@ -220,6 +225,7 @@ const html = `<!DOCTYPE html>
 
 	<script>
 		(function(){
+			var __INITIAL__ = ${safe};
 			function qs(id){ return document.getElementById(id); }
 			const form = qs('solicitarForm');
 			const cardDetail = qs('cardDetail');
@@ -239,6 +245,14 @@ const html = `<!DOCTYPE html>
 				try { if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') { window.parent.postMessage(navMsg, '*'); } } catch (e) {}
 			}
 
+			function postMsg(obj){
+				try {
+					var rnwv = (window && window['ReactNativeWebView']) || (window['webkit'] && window['webkit']['messageHandlers'] && window['webkit']['messageHandlers']['ReactNativeWebView']);
+					if (rnwv && typeof rnwv.postMessage === 'function') { rnwv.postMessage(JSON.stringify(obj)); }
+				} catch(e){}
+				try { if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') { window.parent.postMessage(obj, '*'); } } catch(e){}
+			}
+
 			function show(el){ el.classList.remove('hidden'); }
 			function hide(el){ el.classList.add('hidden'); }
 			function showOk(msg){ alertOk.textContent = msg || '¡Tu solicitud fue enviada correctamente!'; alertOk.classList.add('is-visible'); setTimeout(()=>alertOk.classList.remove('is-visible'), 3000); }
@@ -248,6 +262,31 @@ const html = `<!DOCTYPE html>
 			document.querySelectorAll('.animate-fade-in, .animate-slide-up').forEach(function(el, idx){
 				try { el['style'].animationDelay = (idx * 0.1) + 's'; } catch(e) {}
 			});
+
+			// Prefill publication
+			try{
+				var p = __INITIAL__ && __INITIAL__.publicacion;
+				if(p){
+					qs('pTitulo').textContent = p.titulo || 'Publicación';
+					qs('pMeta').textContent = (p.entidad || 'Entidad') + (p.ubicacion ? ' - ' + p.ubicacion : '');
+					qs('pDesc').textContent = p.descripcion || '';
+					qs('pTipo').textContent = '💰 Venta';
+					var emoji = '🍽️';
+					var n = (p.categoriaNombre||'').toLowerCase();
+					if(n.indexOf('fruta')>-1||n.indexOf('verdura')>-1) emoji='🥕';
+					else if(n.indexOf('pan')>-1) emoji='🍞';
+					else if(n.indexOf('lact')>-1) emoji='🥛';
+					else if(n.indexOf('carn')>-1||n.indexOf('pesc')>-1) emoji='🥩';
+					else if(n.indexOf('preparad')>-1||n.indexOf('cocin')>-1) emoji='🍽️';
+					else if(n.indexOf('conserv')>-1||n.indexOf('enlat')>-1) emoji='🥫';
+					else if(n.indexOf('bebid')>-1) emoji='🥤';
+					qs('pEmoji').textContent = emoji;
+					if (p.fechaCaducidad) {
+						var m = String(p.fechaCaducidad).match(/^(\d{4})-(\d{2})-(\d{2})/);
+						if(m){ qs('pFecha').textContent = '📅 Vence: '+m[3]+'/'+m[2]+'/'+m[1]; qs('pFecha').classList.remove('hidden'); }
+					}
+				}
+			}catch(e){}
 
 			// Métodos de pago: alternar selected y mostrar detalle
 			document.querySelectorAll('.payment-option').forEach(function(opt){
@@ -299,13 +338,32 @@ const html = `<!DOCTYPE html>
 				const err = validate();
 				if(err){ showErr(err); return; }
 				submitBtn.disabled = true; submitBtn.classList.add('opacity-70');
-				setTimeout(()=>{ // Simular backend
-					showOk();
-					form.reset();
-					document.querySelectorAll('.payment-option').forEach(o=>o.classList.remove('selected'));
-					hide(cardDetail);
-					submitBtn.disabled = false; submitBtn.classList.remove('opacity-70');
-				}, 800);
+				try {
+					var p = __INITIAL__ && __INITIAL__.publicacion;
+					if (!p) { showErr('No se pudo cargar la publicación'); submitBtn.disabled=false; submitBtn.classList.remove('opacity-70'); return; }
+					var method = (document.querySelector('.payment-option.selected')||{}).getAttribute && (document.querySelector('.payment-option.selected') as any).getAttribute('data-method');
+					var payload = {
+						type: 'createTransaccion',
+						payload: {
+							publicacionId: Number(p.id),
+							donanteVendedorId: Number(p.usuarioId),
+							beneficiarioCompradorId: Number(__INITIAL__ && __INITIAL__.currentUserId || 0),
+							fechaTransaccion: new Date().toISOString(),
+							meta: {
+								quantityDesired: (qs('quantity')||{}).value,
+								budget: (qs('budget')||{}).value,
+								paymentMethod: method,
+								deliveryPreference: (qs('deliveryPreference')||{}).value,
+								timePreference: (qs('timePreference')||{}).value,
+								message: (qs('message')||{}).value,
+								termsAccepted: !!qs('terms').checked,
+							}
+						}
+					};
+					postMsg(payload);
+				} catch(err) {
+					showErr('Error al enviar'); submitBtn.disabled=false; submitBtn.classList.remove('opacity-70');
+				}
 			});
 
 			// Navegación atrás (comunicación con host) - enviar mensaje y permitir que el enlace navegue
@@ -317,10 +375,13 @@ const html = `<!DOCTYPE html>
 		})();
 	</script>
 </body>
-</html>`;
+ </html>`;
+}
 
 export default function SolicitarCompraScreen(){
 	const router = useRouter();
+	const { id } = useLocalSearchParams<{ id?: string }>();
+	const [html, setHtml] = React.useState<string>('');
 
 	// Web: escucha mensajes del iframe para navegar
 	React.useEffect(() => {
@@ -330,19 +391,61 @@ export default function SolicitarCompraScreen(){
 			if (typeof data === 'string') {
 				try { data = JSON.parse(data); } catch {}
 			}
-			if (data?.type === 'navigate' && typeof data.path === 'string') {
-				router.push(data.path as any);
+			if (data?.type === 'navigate' && typeof data.path === 'string') { router.push(data.path as any); return; }
+			if (data?.type === 'createTransaccion' && data.payload) {
+				(async () => {
+					const resp = await createTransaccion(data.payload);
+					if (resp.success) {
+						alert('Solicitud enviada correctamente');
+						router.push('/explorador' as any);
+					} else {
+						alert(resp.message || 'No se pudo enviar la solicitud');
+					}
+				})();
 			}
 		};
 		window.addEventListener('message', handler as any);
 		return () => window.removeEventListener('message', handler as any);
 	}, [router]);
 
+	React.useEffect(() => {
+		let aborted = false;
+		(async () => {
+			const pubId = Number(id);
+			const token = await storage.getToken();
+			const user = await storage.getUserData();
+			const currentUserId = Number(user?.id ?? user?.userId ?? 0);
+			let publicacion: any = null;
+			if (pubId && token) {
+				try {
+					const res = await fetch(`${API_BASE_URL}/publicaciones/${pubId}`, { headers: { Authorization: `Bearer ${token}` } });
+					if (res.ok) {
+						const p = await res.json();
+						publicacion = {
+							id: p.id,
+							usuarioId: p.usuarioId,
+							titulo: p.titulo,
+							descripcion: p.descripcion,
+							tipo: p.tipo,
+							categoriaNombre: p.categoria?.nombre,
+							fechaCaducidad: p.fechaCaducidad,
+							entidad: p.usuario?.nombreEntidad || p.usuario?.nombre_entidad || p.usuario?.nombre || '',
+							ubicacion: p.usuario?.ubicacion || p.usuario?.ciudad || '',
+						};
+					}
+				} catch {}
+			}
+			const initial = { publicacion, currentUserId };
+			if (!aborted) setHtml(buildHtml(initial));
+		})();
+		return () => { aborted = true; };
+	}, [id]);
+
 	if (Platform.OS === 'web') {
 		return (
 			<SafeAreaView style={styles.safe}>
 				<View style={styles.iframeContainer}>
-					<iframe title="SolicitarCompra" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+					<iframe title="SolicitarCompra" srcDoc={html} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation allow-modals" />
 				</View>
 			</SafeAreaView>
 		);
@@ -356,13 +459,20 @@ export default function SolicitarCompraScreen(){
 				style={styles.webview}
 				javaScriptEnabled
 				domStorageEnabled
-				onMessage={(event) => {
+				onMessage={async (event) => {
 					let data: any = event?.nativeEvent?.data;
 					if (typeof data === 'string') {
 						try { data = JSON.parse(data); } catch {}
 					}
-					if (data?.type === 'navigate' && typeof data.path === 'string') {
-						router.push(data.path as any);
+					if (data?.type === 'navigate' && typeof data.path === 'string') { router.push(data.path as any); return; }
+					if (data?.type === 'createTransaccion' && data.payload) {
+						const resp = await createTransaccion(data.payload);
+						if (resp.success) {
+							alert('Solicitud enviada correctamente');
+							router.push('/explorador' as any);
+						} else {
+							alert(resp.message || 'No se pudo enviar la solicitud');
+						}
 					}
 				}}
 			/>
