@@ -9,7 +9,11 @@ import { Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 function buildHtml(initial: any){
-const safe = JSON.stringify(initial || {}).replace(/</g, '\\u003c');
+const safe = JSON.stringify(initial || {})
+	.replace(/</g, '\\u003c')
+	.replace(/<\/script/gi, '<\\/script')
+	.replace(/\u2028/g, '\\u2028')
+	.replace(/\u2029/g, '\\u2029');
 return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -227,21 +231,19 @@ return `<!DOCTYPE html>
 		(function(){
 			var __INITIAL__ = ${safe};
 			function qs(id){ return document.getElementById(id); }
-			const form = qs('solicitarForm');
-			const cardDetail = qs('cardDetail');
-			const alertOk = qs('alertSuccess');
-			const alertErr = qs('alertError');
-			const submitBtn = qs('submitBtn');
-			const btnBack = document.getElementById('btnBack');
+			var form = qs('solicitarForm');
+			var cardDetail = qs('cardDetail');
+			var alertOk = qs('alertSuccess');
+			var alertErr = qs('alertError');
+			var submitBtn = qs('submitBtn');
+			var btnBack = document.getElementById('btnBack');
             var navMsg = JSON.stringify({ type: 'navigate', path: '/explorador' });
+
 			function navigateToExplorer(){
-				// RN WebView
 				try {
-					var rnwv = (window && window['ReactNativeWebView'])
-						|| (window['webkit'] && window['webkit']['messageHandlers'] && window['webkit']['messageHandlers']['ReactNativeWebView']);
+					var rnwv = (window && window['ReactNativeWebView']) || (window['webkit'] && window['webkit']['messageHandlers'] && window['webkit']['messageHandlers']['ReactNativeWebView']);
 					if (rnwv && typeof rnwv.postMessage === 'function') { rnwv.postMessage(navMsg); }
 				} catch (e) {}
-				// Web (iframe -> parent) por si el contenedor quiere interceptar
 				try { if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') { window.parent.postMessage(navMsg, '*'); } } catch (e) {}
 			}
 
@@ -255,15 +257,21 @@ return `<!DOCTYPE html>
 
 			function show(el){ el.classList.remove('hidden'); }
 			function hide(el){ el.classList.add('hidden'); }
-			function showOk(msg){ alertOk.textContent = msg || '¡Tu solicitud fue enviada correctamente!'; alertOk.classList.add('is-visible'); setTimeout(()=>alertOk.classList.remove('is-visible'), 3000); }
-			function showErr(msg){ alertErr.textContent = msg || 'Ocurrió un error. Por favor revisa los campos.'; alertErr.classList.add('is-visible'); setTimeout(()=>alertErr.classList.remove('is-visible'), 3000); }
+			function showOk(msg){
+				alertOk.textContent = msg || '¡Tu solicitud fue enviada correctamente!';
+				alertOk.classList.add('is-visible');
+				setTimeout(function(){ alertOk.classList.remove('is-visible'); }, 3000);
+			}
+			function showErr(msg){
+				alertErr.textContent = msg || 'Ocurrió un error. Por favor revisa los campos.';
+				alertErr.classList.add('is-visible');
+				setTimeout(function(){ alertErr.classList.remove('is-visible'); }, 3000);
+			}
 
-			// Animación con delay secuencial como referencia (JS puro)
 			document.querySelectorAll('.animate-fade-in, .animate-slide-up').forEach(function(el, idx){
 				try { el['style'].animationDelay = (idx * 0.1) + 's'; } catch(e) {}
 			});
 
-			// Prefill publication
 			try{
 				var p = __INITIAL__ && __INITIAL__.publicacion;
 				if(p){
@@ -288,7 +296,6 @@ return `<!DOCTYPE html>
 				}
 			}catch(e){}
 
-			// Métodos de pago: alternar selected y mostrar detalle
 			document.querySelectorAll('.payment-option').forEach(function(opt){
 				opt.addEventListener('click', function(){
 					document.querySelectorAll('.payment-option').forEach(function(o){ o.classList.remove('selected'); });
@@ -300,33 +307,36 @@ return `<!DOCTYPE html>
 				});
 			});
 
-			// Formateos básicos
-			qs('cardNumber').addEventListener('input', (e)=>{
-				const v = e.target.value.replace(/\D/g,'').slice(0,16).replace(/(\d{4})(?=\d)/g,'$1 ');
+			qs('cardNumber').addEventListener('input', function(e){
+				var v = e.target.value.replace(/\D/g,'').slice(0,16).replace(/(\d{4})(?=\d)/g,'$1 ');
 				e.target.value = v;
 			});
-			qs('expiryDate').addEventListener('input', (e)=>{
-				let v = e.target.value.replace(/\D/g,'').slice(0,4);
+			qs('expiryDate').addEventListener('input', function(e){
+				var v = e.target.value.replace(/\D/g,'').slice(0,4);
 				if(v.length>2) v = v.slice(0,2)+'/'+v.slice(2);
 				e.target.value = v;
 			});
-			qs('cvv').addEventListener('input', (e)=>{ e.target.value = e.target.value.replace(/\D/g,'').slice(0,3); });
+			qs('cvv').addEventListener('input', function(e){ e.target.value = e.target.value.replace(/\D/g,'').slice(0,3); });
 
 			function validate(){
-				const qty = Number(qs('quantity').value||0);
-				const budget = Number(qs('budget').value||0);
-				const method = document.querySelector('.payment-option.selected')?.getAttribute('data-method');
-				if(!qty || qty<1) return 'Indica una cantidad válida';
+				var qtyVal = (qs('quantity') && qs('quantity').value) || '';
+				var qty = Number(qtyVal);
+				var budget = Number((qs('budget') && qs('budget').value) || 0);
+				var sel = document.querySelector('.payment-option.selected');
+				var method = sel && typeof sel.getAttribute === 'function' ? sel.getAttribute('data-method') : null;
+				if(!qtyVal) return 'Selecciona una cantidad';
+				if(!isNaN(qty) && qty < 1) return 'Indica una cantidad válida';
 				if(budget<0) return 'Presupuesto no puede ser negativo';
 				if(!method) return 'Selecciona un método de pago';
 				if(method==='card'){
-					const cn = qs('cardNumber').value.replace(/\s/g,'');
-					const nm = qs('cardName').value.trim();
-					const ex = qs('expiryDate').value;
-					const cv = qs('cvv').value;
+					var cn = (qs('cardNumber') && qs('cardNumber').value || '').replace(/\s/g,'');
+					var nm = (qs('cardName') && qs('cardName').value || '').trim();
+					var ex = (qs('expiryDate') && qs('expiryDate').value) || '';
+					var cv = (qs('cvv') && qs('cvv').value) || '';
 					if(cn.length<16) return 'Número de tarjeta inválido';
 					if(nm.length<4) return 'Nombre de tarjeta inválido';
-					if(!/^\d{2}\/\d{2}$/.test(ex)) return 'Expiración inválida';
+					var expRE = new RegExp('^\\d{2}/\\d{2}$');
+					if(!expRE.test(ex)) return 'Expiración inválida';
 					if(cv.length<3) return 'CVV inválido';
 				}
 				if(!qs('terms').checked) return 'Debes aceptar los términos y condiciones';
@@ -335,13 +345,14 @@ return `<!DOCTYPE html>
 
 			form.addEventListener('submit', function(e){
 				e.preventDefault();
-				const err = validate();
+				var err = validate();
 				if(err){ showErr(err); return; }
 				submitBtn.disabled = true; submitBtn.classList.add('opacity-70');
 				try {
 					var p = __INITIAL__ && __INITIAL__.publicacion;
 					if (!p) { showErr('No se pudo cargar la publicación'); submitBtn.disabled=false; submitBtn.classList.remove('opacity-70'); return; }
-					var method = (document.querySelector('.payment-option.selected')||{}).getAttribute && (document.querySelector('.payment-option.selected') as any).getAttribute('data-method');
+					var sel = document.querySelector('.payment-option.selected');
+					var method = sel && typeof sel.getAttribute === 'function' ? sel.getAttribute('data-method') : null;
 					var payload = {
 						type: 'createTransaccion',
 						payload: {
@@ -350,13 +361,13 @@ return `<!DOCTYPE html>
 							beneficiarioCompradorId: Number(__INITIAL__ && __INITIAL__.currentUserId || 0),
 							fechaTransaccion: new Date().toISOString(),
 							meta: {
-								quantityDesired: (qs('quantity')||{}).value,
-								budget: (qs('budget')||{}).value,
+								quantityDesired: (qs('quantity')&&qs('quantity').value)||'',
+								budget: (qs('budget')&&qs('budget').value)||'',
 								paymentMethod: method,
-								deliveryPreference: (qs('deliveryPreference')||{}).value,
-								timePreference: (qs('timePreference')||{}).value,
-								message: (qs('message')||{}).value,
-								termsAccepted: !!qs('terms').checked,
+								deliveryPreference: (qs('deliveryPreference')&&qs('deliveryPreference').value)||'',
+								timePreference: (qs('timePreference')&&qs('timePreference').value)||'',
+								message: (qs('message')&&qs('message').value)||'',
+								termsAccepted: !!qs('terms').checked
 							}
 						}
 					};
@@ -366,10 +377,7 @@ return `<!DOCTYPE html>
 				}
 			});
 
-			// Navegación atrás (comunicación con host) - enviar mensaje y permitir que el enlace navegue
 			if(btnBack){ btnBack.addEventListener('click', navigateToExplorer); }
-
-			// Cancelar
 			var btnCancel = document.getElementById('btnCancel');
 			if(btnCancel){ btnCancel.addEventListener('click', navigateToExplorer); }
 		})();
