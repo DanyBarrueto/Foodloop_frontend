@@ -143,14 +143,15 @@ const html = `<!DOCTYPE html>
 
 			function renderStats(){
 				const d = state.data;
-				const usuariosTotales = (state.statsOverride && typeof state.statsOverride.usuariosTotales === 'number') ? state.statsOverride.usuariosTotales : d.usuarios.length;
+				const usuariosTotales = (state.statsOverride && typeof state.statsOverride.usuariosTotales === 'number') ? state.statsOverride.usuariosTotales : d.usuarios.filter(u=>u && u.estado==='active').length;
 				const publicacionesActivas = (state.statsOverride && typeof state.statsOverride.publicacionesActivas === 'number') ? state.statsOverride.publicacionesActivas : d.publicaciones.filter(p=>p.estado==='active').length;
-				const transacciones = (state.statsOverride && typeof state.statsOverride.transacciones === 'number') ? state.statsOverride.transacciones : d.transacciones.length;
+				// KPI de transacciones: contar solo las activas (estado===1)
+				const transacciones = (state.statsOverride && typeof state.statsOverride.transacciones === 'number') ? state.statsOverride.transacciones : d.transacciones.filter(function(t){ return Number(t && t.estado)===1; }).length;
 				const reportesPendientes = (state.statsOverride && typeof state.statsOverride.reportesPendientes === 'number') ? state.statsOverride.reportesPendientes : d.reportes.filter(r=>r.estado==='pending').length;
 				const html =
 					'<div class="admin-stats-card"><div class="text-3xl font-extrabold text-primary-600">'+usuariosTotales+'</div><div class="text-gray-600">Usuarios Totales</div></div>'+
 					'<div class="admin-stats-card"><div class="text-3xl font-extrabold text-accent-600">'+publicacionesActivas+'</div><div class="text-gray-600">Publicaciones Activas</div></div>'+
-					'<div class="admin-stats-card"><div class="text-3xl font-extrabold text-secondary-600">'+transacciones+'</div><div class="text-gray-600">Transacciones</div></div>'+
+					'<div class="admin-stats-card"><div class="text-3xl font-extrabold text-secondary-600">'+transacciones+'</div><div class="text-gray-600">Transacciones Activas</div></div>'+
 					'<div class="admin-stats-card"><div class="text-3xl font-extrabold text-red-500">'+reportesPendientes+'</div><div class="text-gray-600">Reportes Pendientes</div></div>';
 				document.getElementById('stats').innerHTML = html;
 			}
@@ -184,9 +185,9 @@ const html = `<!DOCTYPE html>
 					'<td class="px-3 py-2 hidden md:table-cell">'+u.email+'</td>'+ 
 					'<td class="px-3 py-2 hidden md:table-cell">'+u.rol+'</td>'+ 
 					'<td class="px-3 py-2">'+(u.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td>'+ 
-					'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
-					'<button class="admin-btn-secondary" data-action="edit" data-tipo="usuarios" data-id="'+u.id+'">✏️ Editar</button>'+
-					'<button class="admin-btn-warning" data-action="toggle-user" data-id="'+u.id+'">'+(u.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
+					'<td class="px-3 py-2"><div class="flex items-center gap-2 flex-nowrap whitespace-nowrap">'+
+					'<button class="admin-btn-secondary w-auto inline-flex items-center whitespace-nowrap shrink-0" data-action="edit" data-tipo="usuarios" data-id="'+u.id+'">✏️ Editar</button>'+
+					'<button class="admin-btn-warning w-auto inline-flex items-center whitespace-nowrap shrink-0" data-action="toggle-user" data-id="'+u.id+'">'+(u.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
 					'</div></td></tr>').join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='categorias'){
@@ -204,76 +205,154 @@ const html = `<!DOCTYPE html>
 					'<td class="px-3 py-2">'+(g.nombre||'')+'</td>'+
 					'<td class="px-3 py-2 hidden sm:table-cell">'+(g.descripcion||'')+'</td>'+
 					'<td class="px-3 py-2">'+(g.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td>'+
-					'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
-					'<button class="admin-btn-secondary" data-action="edit" data-tipo="categorias" data-id="'+g.id+'">✏️ Editar</button>'+
-					'<button class="admin-btn-warning" data-action="toggle-category" data-id="'+g.id+'">'+(g.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
+					'<td class="px-3 py-2"><div class="flex items-center gap-2 flex-nowrap whitespace-nowrap">'+
+					'<button class="admin-btn-secondary w-auto inline-flex items-center whitespace-nowrap shrink-0" data-action="edit" data-tipo="categorias" data-id="'+g.id+'">✏️ Editar</button>'+
+					'<button class="admin-btn-warning w-auto inline-flex items-center whitespace-nowrap shrink-0" data-action="toggle-category" data-id="'+g.id+'">'+(g.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
 					'</div></td>'+
 					'</tr>'; }).join('')+
 					'</tbody></table></div></div>';
 				} else if(state.activeTab==='publicaciones'){
 					html = '<div class="admin-table-container">'+
-					'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📰 Gestión de Publicaciones</h2><button class="admin-btn-primary" data-action="open-new" data-tipo="publicaciones">➕ Nueva Publicación</button></div>'+
-					'<div class="overflow-x-auto"><table class="admin-table w-full text-sm md:text-base"><thead><tr>'+
-					'<th class="px-3 py-2">ID</th>'+
-					'<th class="px-3 py-2">Título</th>'+
-					'<th class="px-3 py-2 hidden sm:table-cell">Categoría</th>'+
-					'<th class="px-3 py-2">Tipo</th>'+
-					'<th class="px-3 py-2">Cantidad</th>'+
-					'<th class="px-3 py-2">Fecha</th>'+
-					'<th class="px-3 py-2">Estado</th>'+
-					'<th class="px-3 py-2">Acciones</th>'+
-					'</tr></thead><tbody>'+
-					state.data.publicaciones.map(function(p){ return '<tr>'+
-					'<td class="px-3 py-2">'+p.id+'</td>'+
-					'<td class="px-3 py-2">'+(p.titulo||'')+'</td>'+
-					'<td class="px-3 py-2 hidden sm:table-cell">'+(p.categoriaNombre||'')+'</td>'+
-					'<td class="px-3 py-2">'+(p.tipo||'')+'</td>'+
-					'<td class="px-3 py-2">'+(p.cantidad!=null?p.cantidad:'')+'</td>'+
-						'<td class="px-3 py-2">'+(p.fecha ? String(p.fecha).slice(0,10) : '')+'</td>'+            
-					'<td class="px-3 py-2">'+(p.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td>'+
-					'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
-					'<button class="admin-btn-secondary" data-action="edit" data-tipo="publicaciones" data-id="'+p.id+'">✏️ Editar</button>'+
-					'<button class="admin-btn-warning" data-action="toggle-publication" data-id="'+p.id+'">'+(p.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
-					'</div></td>'+
-					'</tr>'; }).join('')+
-					'</tbody></table></div></div>';
+					  '<div class="flex items-center justify-between p-4">'+
+					    '<h2 class="text-lg font-semibold text-gray-800">📰 Gestión de Publicaciones</h2>'+
+					    '<button class="admin-btn-primary" data-action="open-new" data-tipo="publicaciones">➕ Nueva Publicación</button>'+
+					  '</div>'+
+					  // Mobile cards (md:hidden)
+					  '<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 p-4 md:hidden">'+
+					  state.data.publicaciones.map(function(p){ return ''+
+					    '<div class="rounded-xl border border-gray-100 bg-white shadow-sm p-4 hover:shadow-md transition">'+
+					      '<div class="flex items-start justify-between">'+
+					        '<div class="min-w-0">'+
+					          '<div class="text-sm text-gray-500">#'+p.id+'</div>'+ 
+					          '<h3 class="text-base font-semibold text-gray-800 truncate">'+(p.titulo||'')+'</h3>'+ 
+					          '<div class="text-xs text-gray-500 truncate">'+(p.categoriaNombre||'')+'</div>'+ 
+					        '</div>'+ 
+					        '<span class="text-xs px-2 py-1 rounded-full '+(String(p.tipo).toLowerCase()==='venta'?'bg-orange-100 text-orange-700':'bg-green-100 text-green-700')+'">'+(p.tipo||'')+'</span>'+ 
+					      '</div>'+ 
+					      '<div class="mt-3 grid grid-cols-2 gap-3 text-sm">'+
+					        '<div class="bg-gray-50 rounded-lg p-2"><div class="text-xs text-gray-500">Cantidad</div><div class="font-medium">'+(p.cantidad!=null?p.cantidad:'')+'</div></div>'+ 
+					        '<div class="bg-gray-50 rounded-lg p-2"><div class="text-xs text-gray-500">Fecha</div><div class="font-medium">'+(p.fecha? String(p.fecha).slice(0,10) : '')+'</div></div>'+ 
+					      '</div>'+ 
+					      '<div class="mt-3 flex items-center justify-between">'+
+					        '<div>'+(p.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</div>'+ 
+									'<div class="flex gap-2 flex-nowrap overflow-x-auto">'+
+										'<button class="admin-btn-secondary !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="edit" data-tipo="publicaciones" data-id="'+p.id+'">✏️ Editar</button>'+ 
+										'<button class="admin-btn-warning !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="toggle-publication" data-id="'+p.id+'">'+(p.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+ 
+					        '</div>'+ 
+					      '</div>'+ 
+					    '</div>'; }).join('')+
+					  '</div>'+
+					  // Desktop table (hidden on small screens)
+					  '<div class="hidden md:block">'+
+					    '<div class="overflow-x-auto">'+
+					      '<table class="admin-table w-full text-sm md:text-base">'+
+					        '<thead><tr>'+ 
+					          '<th class="px-3 py-2">ID</th>'+ 
+					          '<th class="px-3 py-2">Título</th>'+ 
+					          '<th class="px-3 py-2">Categoría</th>'+ 
+					          '<th class="px-3 py-2">Tipo</th>'+ 
+					          '<th class="px-3 py-2">Cantidad</th>'+ 
+					          '<th class="px-3 py-2">Fecha</th>'+ 
+					          '<th class="px-3 py-2">Estado</th>'+ 
+					          '<th class="px-3 py-2">Acciones</th>'+ 
+					        '</tr></thead><tbody>'+ 
+					        state.data.publicaciones.map(function(p){ return '<tr>'+ 
+					          '<td class="px-3 py-2">'+p.id+'</td>'+ 
+					          '<td class="px-3 py-2">'+(p.titulo||'')+'</td>'+ 
+					          '<td class="px-3 py-2">'+(p.categoriaNombre||'')+'</td>'+ 
+					          '<td class="px-3 py-2">'+(p.tipo||'')+'</td>'+ 
+					          '<td class="px-3 py-2">'+(p.cantidad!=null?p.cantidad:'')+'</td>'+ 
+					          '<td class="px-3 py-2">'+(p.fecha ? String(p.fecha).slice(0,10) : '')+'</td>'+ 
+											  '<td class="px-3 py-2">'+(p.estado==='active'?'<span class="admin-badge-active">Activo</span>':'<span class="admin-badge-inactive">Inactivo</span>')+'</td>'+ 
+														'<td class="px-3 py-2"><div class="flex items-center gap-2 flex-nowrap whitespace-nowrap">'+ 
+															'<button class="admin-btn-secondary !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="edit" data-tipo="publicaciones" data-id="'+p.id+'">✏️ Editar</button>'+ 
+															'<button class="admin-btn-warning !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="toggle-publication" data-id="'+p.id+'">'+(p.estado==='active'?'⏸️ Desactivar':'▶️ Activar')+'</button>'+ 
+											  '</div></td>'+ 
+					        '</tr>'; }).join('')+ 
+					        '</tbody></table>'+ 
+					    '</div>'+ 
+					  '</div>'+ 
+					'</div>';
 												} else if(state.activeTab==='transacciones'){
-										html = '<div class="admin-table-container">'+
-										'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">💳 Gestión de Transacciones</h2></div>'+
-														'<div class="overflow-x-auto"><table class="admin-table w-full text-sm md:text-base"><thead><tr>'+
-														'<th class="px-3 py-2">ID</th>'+ // id_transaccion
-														'<th class="px-3 py-2">Publicación</th>'+ // título
-														'<th class="px-3 py-2">Donante/Vendedor</th>'+ // nombre donante/vendedor
-														'<th class="px-3 py-2">Beneficiario/Comprador</th>'+ // nombre beneficiario/comprador
-														'<th class="px-3 py-2">Precio</th>'+ // precio de la publicación
-														'<th class="px-3 py-2">Estado</th>'+ // 0 inactivo / 1 activo
-														'<th class="px-3 py-2">Fecha</th>'+ 
-														'<th class="px-3 py-2">Acciones</th>'+ 
-										'</tr></thead><tbody>'+
-										(state.data.transacciones||[]).map(function(t){
-												var id = t.id;
-												var titulo = t.publicacionTitulo || '';
-												var precio = (t.publicacionPrecio!=null ? Number(t.publicacionPrecio) : 0);
-																var donanteNombre = t.donanteNombre || '';
-																var beneficiarioNombre = t.beneficiarioNombre || '';
-												var estNum = Number(t.estado);
-												var estBadge = (estNum===1) ? '<span class="admin-badge-active">Activo</span>' : '<span class="admin-badge-inactive">Inactivo</span>';
-												var fecha = t.fecha ? String(t.fecha).slice(0,10) : '';
-												return '<tr>'+
-													'<td class="px-3 py-2">'+id+'</td>'+
-													'<td class="px-3 py-2">'+titulo+'</td>'+
-																	'<td class="px-3 py-2">'+donanteNombre+'</td>'+
-																	'<td class="px-3 py-2">'+beneficiarioNombre+'</td>'+
-													'<td class="px-3 py-2">€ '+precio.toFixed(2)+'</td>'+
-													'<td class="px-3 py-2">'+estBadge+'</td>'+
-													'<td class="px-3 py-2">'+fecha+'</td>'+
-													'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
-														'<button class="admin-btn-secondary" data-action="edit" data-tipo="transacciones" data-id="'+id+'">✏️ Editar</button>'+
-														'<button class="admin-btn-warning" data-action="toggle-transaction" data-id="'+id+'">'+(estNum===1?'⏸️ Desactivar':'▶️ Activar')+'</button>'+
-													'</div></td>'+
-												'</tr>';
-										}).join('')+
-										'</tbody></table></div></div>';
+								html = '<div class="admin-table-container">'+
+								  '<div class="flex items-center justify-between p-4">'+
+								    '<h2 class="text-lg font-semibold text-gray-800">💳 Gestión de Transacciones</h2>'+
+								  '</div>'+
+								  // Mobile cards
+								  '<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 p-4 md:hidden">'+
+								  (state.data.transacciones||[]).map(function(t){
+								    var id = t.id;
+								    var titulo = t.publicacionTitulo || '';
+								    var precio = (t.publicacionPrecio!=null ? Number(t.publicacionPrecio) : 0);
+								    var donanteNombre = t.donanteNombre || '';
+								    var beneficiarioNombre = t.beneficiarioNombre || '';
+								    var estNum = Number(t.estado);
+								    var estBadge = (estNum===1) ? '<span class="admin-badge-active">Activo</span>' : '<span class="admin-badge-inactive">Inactivo</span>';
+								    var fecha = t.fecha ? String(t.fecha).slice(0,10) : '';
+								    return ''+
+								      '<div class="rounded-xl border border-gray-100 bg-white shadow-sm p-4 hover:shadow-md transition">'+
+								        '<div class="flex items-start justify-between">'+
+								          '<div class="min-w-0">'+
+								            '<div class="text-sm text-gray-500">#'+id+'</div>'+
+								            '<h3 class="text-base font-semibold text-gray-800 truncate">'+titulo+'</h3>'+ 
+								            '<div class="text-xs text-gray-500 truncate">'+donanteNombre+' → '+beneficiarioNombre+'</div>'+ 
+								          '</div>'+ 
+								          '<div class="text-right">'+
+								            '<div class="text-sm font-semibold text-gray-800">€ '+precio.toFixed(2)+'</div>'+ 
+								          '</div>'+ 
+								        '</div>'+ 
+								        '<div class="mt-3 grid grid-cols-2 gap-3 text-sm">'+
+								          '<div class="bg-gray-50 rounded-lg p-2"><div class="text-xs text-gray-500">Estado</div><div class="font-medium">'+estBadge+'</div></div>'+ 
+								          '<div class="bg-gray-50 rounded-lg p-2"><div class="text-xs text-gray-500">Fecha</div><div class="font-medium">'+fecha+'</div></div>'+ 
+								        '</div>'+ 
+												'<div class="mt-3 flex justify-end gap-2 flex-nowrap overflow-x-auto">'+
+													'<button class="admin-btn-secondary !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="edit" data-tipo="transacciones" data-id="'+id+'">✏️ Editar</button>'+ 
+													'<button class="admin-btn-warning !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="toggle-transaction" data-id="'+id+'">'+(estNum===1?'⏸️ Desactivar':'▶️ Activar')+'</button>'+ 
+								        '</div>'+ 
+								      '</div>'; 
+								  }).join('')+
+								  '</div>'+
+								  // Desktop table
+								  '<div class="hidden md:block">'+
+								    '<div class="overflow-x-auto">'+
+								      '<table class="admin-table w-full text-sm md:text-base">'+
+								        '<thead><tr>'+ 
+								          '<th class="px-3 py-2">ID</th>'+ 
+								          '<th class="px-3 py-2">Publicación</th>'+ 
+								          '<th class="px-3 py-2">Donante/Vendedor</th>'+ 
+								          '<th class="px-3 py-2">Beneficiario/Comprador</th>'+ 
+								          '<th class="px-3 py-2">Precio</th>'+ 
+								          '<th class="px-3 py-2">Estado</th>'+ 
+								          '<th class="px-3 py-2">Fecha</th>'+ 
+								          '<th class="px-3 py-2">Acciones</th>'+ 
+								        '</tr></thead><tbody>'+ 
+								        (state.data.transacciones||[]).map(function(t){
+								          var id = t.id;
+								          var titulo = t.publicacionTitulo || '';
+								          var precio = (t.publicacionPrecio!=null ? Number(t.publicacionPrecio) : 0);
+								          var donanteNombre = t.donanteNombre || '';
+								          var beneficiarioNombre = t.beneficiarioNombre || '';
+								          var estNum = Number(t.estado);
+								          var estBadge = (estNum===1) ? '<span class="admin-badge-active">Activo</span>' : '<span class="admin-badge-inactive">Inactivo</span>';
+								          var fecha = t.fecha ? String(t.fecha).slice(0,10) : '';
+								          return '<tr>'+ 
+								            '<td class="px-3 py-2">'+id+'</td>'+ 
+								            '<td class="px-3 py-2">'+titulo+'</td>'+ 
+								            '<td class="px-3 py-2">'+donanteNombre+'</td>'+ 
+								            '<td class="px-3 py-2">'+beneficiarioNombre+'</td>'+ 
+								            '<td class="px-3 py-2">€ '+precio.toFixed(2)+'</td>'+ 
+								            '<td class="px-3 py-2">'+estBadge+'</td>'+ 
+								            '<td class="px-3 py-2">'+fecha+'</td>'+ 
+																			'<td class="px-3 py-2"><div class="flex items-center gap-2 flex-nowrap whitespace-nowrap">'+ 
+																				'<button class="admin-btn-secondary !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="edit" data-tipo="transacciones" data-id="'+id+'">✏️ Editar</button>'+ 
+																				'<button class="admin-btn-warning !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="toggle-transaction" data-id="'+id+'">'+(estNum===1?'⏸️ Desactivar':'▶️ Activar')+'</button>'+ 
+															    '</div></td>'+ 
+								          '</tr>'; 
+								        }).join('')+ 
+								        '</tbody></table>'+ 
+								    '</div>'+ 
+								  '</div>'+ 
+								'</div>';
 								} else if(state.activeTab==='reportes'){
 									html = '<div class="admin-table-container">'+
 									'<div class="flex items-center justify-between p-4"><h2 class="text-lg font-semibold text-gray-800">📝 Gestión de Reportes</h2></div>'+
@@ -301,9 +380,9 @@ const html = `<!DOCTYPE html>
 										'<td class="px-3 py-2">'+desc+'</td>'+ 
 										'<td class="px-3 py-2">'+estBadge+'</td>'+ 
 										'<td class="px-3 py-2">'+fecha+'</td>'+ 
-										'<td class="px-3 py-2"><div class="flex flex-wrap gap-2">'+
-											'<button class="admin-btn-secondary" data-action="edit" data-tipo="reportes" data-id="'+id+'">✏️ Editar</button>'+ 
-											'<button class="admin-btn-warning" data-action="toggle-reporte" data-id="'+id+'">'+(estNum===1?'⏸️ Desactivar':'▶️ Activar')+'</button>'+ 
+										'<td class="px-3 py-2"><div class="flex items-center gap-2 flex-nowrap whitespace-nowrap">'+
+											'<button class="admin-btn-secondary !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="edit" data-tipo="reportes" data-id="'+id+'">✏️ Editar</button>'+ 
+											'<button class="admin-btn-warning !w-auto !inline-flex items-center !whitespace-nowrap !shrink-0" data-action="toggle-reporte" data-id="'+id+'">'+(estNum===1?'⏸️ Desactivar':'▶️ Activar')+'</button>'+ 
 										'</div></td>'+ 
 										'</tr>';
 									}).join('')+
@@ -834,9 +913,19 @@ const html = `<!DOCTYPE html>
 						});
 					}
 				} catch(_){ /* noop */ }
-				// Actualiza UI local y refresca desde backend
+				// Actualiza UI local
 				p.estado = isActive ? 'inactive' : 'active';
+				// Recalcular y reflejar "Publicaciones Activas" inmediatamente
+				try {
+					var activeCount = (state.data.publicaciones || []).filter(function(x){ return x && x.estado==='active'; }).length;
+					state.statsOverride = state.statsOverride || {};
+					state.statsOverride.publicacionesActivas = activeCount;
+					var el = document.querySelector('#stats .admin-stats-card:nth-child(2) .text-3xl');
+					if(el) el.textContent = String(activeCount);
+				} catch(__) { }
+				updateStats();
 				renderContent();
+				// Refrescar desde backend para asegurar consistencia
 				fetchPublicacionesList();
 			}
 
@@ -853,17 +942,27 @@ const html = `<!DOCTYPE html>
 						});
 					}
 				} catch(_){ /* noop */ }
-				// Actualiza UI local y refresca desde backend
+				// Actualiza UI local
 				t.estado = isActive ? 0 : 1;
+				// Recalcular y reflejar KPI de transacciones activas inmediatamente
+				try{
+					var count = (state.data.transacciones || []).filter(function(x){ return Number(x && x.estado)===1; }).length;
+					state.statsOverride = state.statsOverride || {};
+					state.statsOverride.transacciones = count;
+					var el = document.querySelector('#stats .admin-stats-card:nth-child(3) .text-3xl');
+					if(el) el.textContent = String(count);
+				} catch(__) { }
+				updateStats();
 				renderContent();
+				// Refrescar desde backend para asegurar consistencia
 				fetchTransaccionesList();
 			}
 
 			function updateStats(){
 				const d = state.data;
-				const usuariosTotales = (state.statsOverride && typeof state.statsOverride.usuariosTotales === 'number') ? state.statsOverride.usuariosTotales : d.usuarios.length;
+				const usuariosTotales = (state.statsOverride && typeof state.statsOverride.usuariosTotales === 'number') ? state.statsOverride.usuariosTotales : d.usuarios.filter(function(u){ return u && u.estado==='active'; }).length;
 				const publicacionesActivas = (state.statsOverride && typeof state.statsOverride.publicacionesActivas === 'number') ? state.statsOverride.publicacionesActivas : d.publicaciones.filter(p=>p.estado==='active').length;
-				const transacciones = (state.statsOverride && typeof state.statsOverride.transacciones === 'number') ? state.statsOverride.transacciones : d.transacciones.length;
+				const transacciones = (state.statsOverride && typeof state.statsOverride.transacciones === 'number') ? state.statsOverride.transacciones : d.transacciones.filter(function(t){ return Number(t && t.estado)===1; }).length;
 				const reportesPendientes = (state.statsOverride && typeof state.statsOverride.reportesPendientes === 'number') ? state.statsOverride.reportesPendientes : d.reportes.filter(r=>r.estado==='pending').length;
 				document.querySelector('#stats .admin-stats-card:nth-child(1) .text-3xl').textContent = usuariosTotales;
 				document.querySelector('#stats .admin-stats-card:nth-child(2) .text-3xl').textContent = publicacionesActivas;
@@ -955,7 +1054,8 @@ const html = `<!DOCTYPE html>
 					const res = await fetch(API_BASE_URL + '/transacciones', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
 					if(!res.ok) { return; }
 					const data = await res.json();
-					const count = Array.isArray(data) ? data.length : (typeof data?.total === 'number' ? data.total : 0);
+					// Contar solo transacciones activas (estado===1)
+					const count = Array.isArray(data) ? data.filter(function(t){ return Number(t && t.estado)===1; }).length : (typeof data?.activas === 'number' ? data.activas : 0);
 					state.statsOverride = state.statsOverride || {};
 					state.statsOverride.transacciones = count;
 					// Actualiza inmediatamente el DOM del stat card de transacciones (3er card)
@@ -1007,6 +1107,14 @@ const html = `<!DOCTYPE html>
 							} catch(_){ }
 							return { id: id, publicacionId: pubId, publicacionTitulo: pubInfo.titulo, publicacionPrecio: pubInfo.precio, estado: estado, fecha: fecha, donanteNombre: donName, beneficiarioNombre: benName };
 						}).sort(function(a,b){ return (a.id||0)-(b.id||0); });
+						// Actualizar KPI de transacciones activas inmediatamente tras el fetch
+						try{
+							var activeCount = (state.data.transacciones || []).filter(function(x){ return Number(x && x.estado)===1; }).length;
+							state.statsOverride = state.statsOverride || {};
+							state.statsOverride.transacciones = activeCount;
+							var el = document.querySelector('#stats .admin-stats-card:nth-child(3) .text-3xl');
+							if(el) el.textContent = String(activeCount);
+						} catch(__) { }
 						if(state.activeTab==='transacciones'){ renderContent(); }
 					}
 				}catch(_){ }
@@ -1034,12 +1142,12 @@ const html = `<!DOCTYPE html>
 					const res = await fetch(API_BASE_URL + '/users', { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN, 'Accept': 'application/json' } });
 					if(!res.ok) { return; }
 					const data = await res.json();
-					const count = Array.isArray(data) ? data.length : (typeof data?.total === 'number' ? data.total : 0);
+					const actives = Array.isArray(data) ? data.filter(function(u){ var est = Number(u && u.estado); return est === 1 || est === 2; }).length : (typeof data?.activos === 'number' ? data.activos : 0);
 					state.statsOverride = state.statsOverride || {};
-					state.statsOverride.usuariosTotales = count;
+					state.statsOverride.usuariosTotales = actives;
 					// Actualiza inmediatamente el DOM del stat card
 					const n = document.querySelector('#stats .admin-stats-card:nth-child(1) .text-3xl');
-					if(n) n.textContent = String(count);
+					if(n) n.textContent = String(actives);
 				} catch(e){ /* noop */ }
 			}
 
@@ -1071,6 +1179,14 @@ const html = `<!DOCTYPE html>
 						return { id: id, titulo: titulo, descripcion: descripcion, tipo: tipo, cantidad: cantidad, fecha: fecha, categoriaId: categoriaId, categoriaNombre: categoriaNombre, usuarioId: usuarioId, estado: uiEstado };
 					}).sort(function(a,b){ return (a.id||0) - (b.id||0); });
 					state.data.publicaciones = mapped;
+					// Actualizar KPI de publicaciones activas inmediatamente tras el fetch
+					try{
+						var activeCount = mapped.filter(function(p){ return p && p.estado==='active'; }).length;
+						state.statsOverride = state.statsOverride || {};
+						state.statsOverride.publicacionesActivas = activeCount;
+						var el = document.querySelector('#stats .admin-stats-card:nth-child(2) .text-3xl');
+						if(el) el.textContent = String(activeCount);
+					} catch(__) { }
 					if(state.activeTab==='publicaciones'){ renderContent(); }
 				}catch(_){ }
 			}
@@ -1101,9 +1217,10 @@ const html = `<!DOCTYPE html>
 					state.data = state.data || {}; state.data.usuarios = mapped.sort(function(a,b){ return (a.id||0) - (b.id||0); });
 					// Actualizar stats override y DOM del primer card
 					state.statsOverride = state.statsOverride || {};
-					state.statsOverride.usuariosTotales = mapped.length;
+					var activeCount = mapped.filter(function(u){ return u && u.estado==='active'; }).length;
+					state.statsOverride.usuariosTotales = activeCount;
 					var n = document.querySelector('#stats .admin-stats-card:nth-child(1) .text-3xl');
-					if(n) n.textContent = String(mapped.length);
+					if(n) n.textContent = String(activeCount);
 					// Si estamos en la pestaña usuarios, re-renderizar la tabla
 					if(state.activeTab === 'usuarios') { renderContent(); }
 				} catch(e){ /* noop */ }
@@ -1135,6 +1252,14 @@ const html = `<!DOCTYPE html>
 			// Exponer funciones usadas por onclick al objeto global (iframe)
 			window.openEdit = openEdit;
 			window.openDelete = openDelete;
+						// Actualizar KPI de transacciones activas inmediatamente (inicial)
+						try{
+							var count = (state.data.transacciones || []).filter(function(x){ return Number(x && x.estado)===1; }).length;
+							state.statsOverride = state.statsOverride || {};
+							state.statsOverride.transacciones = count;
+							var el = document.querySelector('#stats .admin-stats-card:nth-child(3) .text-3xl');
+							if(el) el.textContent = String(count);
+						} catch(__) { }
 			window.toggleUserStatus = toggleUserStatus;
 			window.togglePublicationStatus = togglePublicationStatus;
 			// No se expone toggle de categoría por ahora
