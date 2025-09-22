@@ -4,7 +4,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -17,7 +17,7 @@ export const unstable_settings = {
 function RootLayoutInner() {
   const colorScheme = useColorScheme();
   const [showAccountMenu, setShowAccountMenu] = React.useState(false);
-  const { logout } = useAuth();
+  const { logout, isAuthenticated, user } = useAuth();
 
   React.useEffect(() => {
     const offShow = overlayBus.on('showAccountMenu', () => setShowAccountMenu(true));
@@ -33,6 +33,49 @@ function RootLayoutInner() {
     });
     return () => { offShow(); offHide(); offAction(); };
   }, []);
+
+  // Web-only: evitar volver a pantallas autenticadas al usar el botón atrás del navegador
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const ALLOWED_ANON = new Set<string>(['/PantallaPrincipal', '/(tabs)/PantallaPrincipal', '/', '/login', '/register']);
+    const BLOCKED_FOR_AUTH = new Set<string>(['/login', '/register']);
+    const enforce = () => {
+      try {
+        const path = (window.location && window.location.pathname) || '/';
+        if (!isAuthenticated && !ALLOWED_ANON.has(path)) {
+          router.replace('/(tabs)/PantallaPrincipal' as any);
+          return;
+        }
+        if (isAuthenticated && BLOCKED_FOR_AUTH.has(path)) {
+          const estado = Number((user as any)?.estado);
+          const dest = estado === 2 ? '/admin' : '/explorador';
+          router.replace(dest as any);
+        }
+      } catch {}
+    };
+    // Enforce on mount and when auth state changes
+    enforce();
+    // Trap back navigation while no autenticado
+    if (!isAuthenticated) {
+      try { window.history.pushState({ noBack: true }, '', window.location.href); } catch {}
+    }
+    const onPop = () => enforce();
+    const onShow = (e: any) => { if (e && e.persisted) enforce(); };
+    const onPopTrap = () => {
+      if (!isAuthenticated) {
+        try { router.replace('/(tabs)/PantallaPrincipal' as any); } catch {}
+        try { window.history.go(1); } catch {}
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('popstate', onPopTrap);
+    window.addEventListener('pageshow', onShow);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('popstate', onPopTrap);
+      window.removeEventListener('pageshow', onShow);
+    };
+  }, [isAuthenticated]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
