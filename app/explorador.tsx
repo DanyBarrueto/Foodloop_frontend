@@ -202,6 +202,25 @@ const html = `<!DOCTYPE html>
         </div>
       </div>
     </div>
+
+    <!-- Report Modal -->
+    <div id="reportModal" class="modal">
+      <div class="modal-content" style="max-width: 600px;">
+        <div class="flex items-start justify-between mb-4">
+          <h3 class="text-xl font-bold text-gray-800">🚩 Reportar Publicación</h3>
+          <button aria-label="Cerrar" onclick="closeReportModal()" class="text-gray-500 hover:text-gray-700">✖</button>
+        </div>
+        <div class="space-y-3">
+          <p class="text-sm text-gray-600">Cuéntanos brevemente el motivo del reporte.</p>
+          <textarea id="reportDescription" class="input-field" placeholder="Describe el problema..." rows="4"></textarea>
+          <div id="reportError" class="text-sm text-red-600 hidden"></div>
+        </div>
+        <div class="mt-6 flex justify-end gap-3">
+          <button class="btn-secondary" onclick="closeReportModal()">Cancelar</button>
+          <button id="reportSubmitBtn" class="btn-request" onclick="submitReport()">Enviar Reporte</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -214,6 +233,7 @@ const html = `<!DOCTYPE html>
       foodType: 'all',
       location: ''
     };
+  let REPORT_CTX = { listingId: null, sending: false };
 
     async function fetchListings(){
       try{
@@ -315,9 +335,12 @@ const html = `<!DOCTYPE html>
       const donationCount = currentListings.filter(l => l.foodType === 'donacion').length;
       const saleCount = currentListings.filter(l => l.foodType === 'venta').length;
 
-      document.getElementById('totalCount').textContent = total;
-      document.getElementById('donationCount').textContent = donationCount;
-      document.getElementById('saleCount').textContent = saleCount;
+      var totalEl = document.getElementById('totalCount');
+      var donEl = document.getElementById('donationCount');
+      var saleEl = document.getElementById('saleCount');
+      if (totalEl) totalEl.textContent = String(total);
+      if (donEl) donEl.textContent = String(donationCount);
+      if (saleEl) saleEl.textContent = String(saleCount);
     }
 
     // Renderizar listados
@@ -384,14 +407,23 @@ const html = `<!DOCTYPE html>
                 <span>Publicado: \${new Date(listing.createdAt).toLocaleDateString('es-ES')}</span>
               </div>
             </div>
-            
-            <button 
-              class="btn-request \${isRequested ? 'requested' : ''}"
-              onclick="handleRequest('\${listing.id}')"
-              \${isRequested ? 'disabled' : ''}
-            >
-              \${isRequested ? '✅ Solicitado' : buttonText}
-            </button>
+
+            <div class="flex flex-wrap gap-3">
+              <button 
+                class="btn-request \${isRequested ? 'requested' : ''}"
+                onclick="handleRequest('\${listing.id}')"
+                \${isRequested ? 'disabled' : ''}
+              >
+                \${isRequested ? '✅ Solicitado' : buttonText}
+              </button>
+              <button 
+                class="btn-secondary"
+                onclick="openReportModal('\${listing.id}')"
+                title="Reportar esta publicación"
+              >
+                🚩 Reportar
+              </button>
+            </div>
           </div>
         \`;
       }).join('');
@@ -447,6 +479,64 @@ const html = `<!DOCTYPE html>
       document.getElementById('modal').classList.remove('show');
     }
 
+    // Report modal handlers
+    function openReportModal(listingId){
+      try{
+        REPORT_CTX.listingId = listingId || null;
+        REPORT_CTX.sending = false;
+        var err = document.getElementById('reportError'); if(err){ err.classList.add('hidden'); err.textContent=''; }
+        var ta = document.getElementById('reportDescription'); if(ta){ ta.value=''; }
+        var btn = document.getElementById('reportSubmitBtn'); if(btn){ btn.disabled=false; btn.textContent='Enviar Reporte'; }
+        document.getElementById('reportModal').classList.add('show');
+      }catch(_){ }
+    }
+    function closeReportModal(){
+      try{ document.getElementById('reportModal').classList.remove('show'); }catch(_){ }
+    }
+    async function submitReport(){
+      try{
+        if(REPORT_CTX.sending){ return; }
+        var listingId = REPORT_CTX.listingId;
+        var ta = document.getElementById('reportDescription');
+        var err = document.getElementById('reportError');
+        var btn = document.getElementById('reportSubmitBtn');
+        var desc = ta && ta.value ? String(ta.value).trim() : '';
+        if(!listingId){ if(err){ err.textContent='No se encontró la publicación a reportar.'; err.classList.remove('hidden'); } return; }
+        if(!CURRENT_USER_ID){ if(err){ err.textContent='Debes iniciar sesión para reportar.'; err.classList.remove('hidden'); } return; }
+        if(!AUTH_TOKEN){ if(err){ err.textContent='Sesión no válida. Intenta iniciar sesión nuevamente.'; err.classList.remove('hidden'); } return; }
+        if(!desc){ if(err){ err.textContent='Describe brevemente el motivo del reporte.'; err.classList.remove('hidden'); } return; }
+        REPORT_CTX.sending = true;
+        if(btn){ btn.disabled = true; btn.textContent = 'Enviando...'; }
+        if(err){ err.classList.add('hidden'); err.textContent=''; }
+        // Construir payload acorde al backend
+        var payload = {
+          reportanteId: Number(CURRENT_USER_ID),
+          publicacionId: Number(listingId),
+          descripcion: desc,
+          estado: 1
+        };
+        var headers = { 'Content-Type':'application/json', 'Accept':'application/json', 'Authorization':'Bearer '+AUTH_TOKEN };
+        var res = await fetch(API_BASE_URL + '/reportes', { method:'POST', headers: headers, body: JSON.stringify(payload) });
+        var data = null; try{ data = await res.json(); }catch(_){ }
+        if(!res.ok){
+          var msg = (data && (data.message||data.error)) || ('Error '+res.status+': '+res.statusText);
+          if(err){ err.textContent = msg; err.classList.remove('hidden'); }
+          REPORT_CTX.sending = false;
+          if(btn){ btn.disabled=false; btn.textContent='Enviar Reporte'; }
+          return;
+        }
+        // Éxito
+        closeReportModal();
+        showModal('¡Gracias! Tu reporte ha sido enviado.');
+      }catch(e){
+        var errEl = document.getElementById('reportError');
+        if(errEl){ errEl.textContent = 'No se pudo enviar el reporte.'; errEl.classList.remove('hidden'); }
+      }finally{
+        REPORT_CTX.sending = false;
+        var btn2 = document.getElementById('reportSubmitBtn'); if(btn2){ btn2.disabled=false; btn2.textContent='Enviar Reporte'; }
+      }
+    }
+
     // Event listeners
   document.addEventListener('DOMContentLoaded', function() {
       // Animaciones de entrada
@@ -482,6 +572,7 @@ const html = `<!DOCTYPE html>
           closeModal();
         }
       });
+  document.getElementById('reportModal').addEventListener('click', function(e){ if(e.target===this){ closeReportModal(); } });
 
       // Carga inicial desde backend
       fetchListings();

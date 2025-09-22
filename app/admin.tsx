@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
+import { API_BASE_URL as API_BASE } from '@/services/authService';
 import AdminCss from '@/styles/Admin';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import { router } from 'expo-router';
@@ -42,24 +43,7 @@ const html = `<!DOCTYPE html>
 						<button class="admin-tab-btn" data-tab="reportes">📝 Reportes</button>
 					</div>
 
-					<div id="stats" class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-						<div class="admin-stats-card">
-							<div class="text-3xl font-bold text-green-600">245</div>
-							<div class="text-gray-600">Usuarios Totales</div>
-						</div>
-						<div class="admin-stats-card">
-							<div class="text-3xl font-bold text-orange-600">89</div>
-							<div class="text-gray-600">Publicaciones Activas</div>
-						</div>
-						<div class="admin-stats-card">
-							<div class="text-3xl font-bold text-blue-600">156</div>
-							<div class="text-gray-600">Transacciones</div>
-						</div>
-						<div class="admin-stats-card">
-							<div class="text-3xl font-bold text-red-600">12</div>
-							<div class="text-gray-600">Reportes Pendientes</div>
-						</div>
-					</div>
+					<div id="stats" class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"></div>
 					<div id="content"></div>
 				</div>
 			</main>
@@ -113,14 +97,14 @@ const html = `<!DOCTYPE html>
 			function hidePopup(){ try{ var p=document.getElementById('appPopup'); if(p){ p.style.display='none'; p.classList.add('hidden'); } }catch(_){} }
 			// Variables inyectadas desde React (placeholders reemplazados en runtime)
 			const API_BASE_URL = '__API_BASE_URL__';
-			const AUTH_TOKEN = '__AUTH_TOKEN__';
+			var AUTH_TOKEN = '__AUTH_TOKEN__';
 			const TABS = ['usuarios','categorias','publicaciones','transacciones','reportes'];
 			const state = { activeTab: 'usuarios', edit: { open:false, tipo:'', id:null }, del: { open:false, tipo:'', id:null }, statsOverride: {}, data: {
-				usuarios: [ { id:1, nombre:'Ana López', email:'ana@example.com', rol:'admin', estado:'active' }, { id:2, nombre:'Luis Pérez', email:'luis@example.com', rol:'user', estado:'inactive' }, { id:3, nombre:'María Gómez', email:'maria@example.com', rol:'user', estado:'active' } ],
-				categorias: [ { id:1, nombre:'Frutas y Verduras', descripcion:'', estado:'active' }, { id:2, nombre:'Panadería', descripcion:'', estado:'active' }, { id:3, nombre:'Lácteos', descripcion:'', estado:'inactive' } ],
-				publicaciones: [ { id:1, titulo:'Excedente de verduras frescas', tipo:'donación', estado:'active', fecha:'2025-09-01' }, { id:2, titulo:'Pan del día anterior', tipo:'venta', estado:'paused', fecha:'2025-09-10' }, { id:3, titulo:'Lácteos por vencer', tipo:'venta', estado:'expired', fecha:'2025-08-27' } ],
-				transacciones: [ { id:1001, usuario:'Ana López', monto:12.5, estado:'pending', fecha:'2025-09-12' }, { id:1002, usuario:'Luis Pérez', monto:4.0, estado:'completed', fecha:'2025-09-13' } ],
-				reportes: [ { id:501, reportante:'Usuario 23', asunto:'Publicación duplicada', estado:'pending', fecha:'2025-09-09' }, { id:502, reportante:'Usuario 17', asunto:'Contenido inapropiado', estado:'resolved', fecha:'2025-09-11' } ]
+				usuarios: [],
+				categorias: [],
+				publicaciones: [],
+				transacciones: [],
+				reportes: []
 			}};
 
 			function formatDate(val){
@@ -1183,18 +1167,28 @@ const html = `<!DOCTYPE html>
 				if(tab==='reportes'){ fetchReportesList(); }
 			}
 
+			function refreshAll(){
+				try{
+					if(!AUTH_TOKEN){ return; }
+					fetchUsersList();
+					fetchPublicacionesActivas();
+					fetchPublicacionesList();
+					fetchTransaccionesCount();
+					fetchTransaccionesList();
+					fetchReportesPendientes();
+					fetchReportesList();
+					fetchCategoriesList();
+				}catch(_){ }
+			}
+
 			function init(){
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
 				renderStats();
 				renderContent(); // Mostrar contenido inicial
-				fetchUsersList();
-				fetchPublicacionesActivas();
-				fetchPublicacionesList();
-				fetchTransaccionesCount();
-				fetchTransaccionesList();
-				fetchReportesPendientes();
-				fetchReportesList();
-				fetchCategoriesList();
+				refreshAll();
+				// Refuerzo: reintentos escalonados en caso de que el token llegue con retraso
+				try{ setTimeout(function(){ if(AUTH_TOKEN){ refreshAll(); } }, 400); }catch(_){ }
+				try{ setTimeout(function(){ if(AUTH_TOKEN){ refreshAll(); } }, 1200); }catch(_){ }
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
 				qs('editForm').addEventListener('submit', saveEdit);
@@ -1253,12 +1247,9 @@ const html = `<!DOCTYPE html>
 				document.querySelectorAll('[data-tab]').forEach(b=>{ b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); }); });
 				renderStats();
 				renderContent(); // Mostrar contenido inicial
-				fetchUsersList();
-				fetchPublicacionesActivas();
-				fetchPublicacionesList();
-				fetchTransaccionesCount();
-				fetchReportesPendientes();
-				fetchCategoriesList();
+				refreshAll();
+				try{ setTimeout(function(){ if(AUTH_TOKEN){ refreshAll(); } }, 400); }catch(_){ }
+				try{ setTimeout(function(){ if(AUTH_TOKEN){ refreshAll(); } }, 1200); }catch(_){ }
 				qs('btnCloseEdit').addEventListener('click', closeEdit);
 				qs('btnCancelEdit').addEventListener('click', closeEdit);
 				qs('editForm').addEventListener('submit', saveEdit);
@@ -1311,6 +1302,18 @@ const html = `<!DOCTYPE html>
 				document.getElementById('modalOverlay').addEventListener('click', function(e){ if(e.target===this) closeEdit(); });
 				document.getElementById('deleteOverlay').addEventListener('click', function(e){ if(e.target===this) closeDelete(); });
 				document.addEventListener('keydown', function(ev){ if(ev.key==='Escape'){ if(state.edit.open) closeEdit(); if(state.del.open) closeDelete(); } });
+				// Escuchar mensajes del host para setear token y refrescar
+				try{
+					window.addEventListener('message', function(ev){
+						try{
+							var msg = ev && ev.data;
+							if(msg && msg.type==='set-auth'){
+								if(typeof msg.token==='string'){ AUTH_TOKEN = msg.token; }
+								refreshAll();
+							}
+						}catch(_){ }
+					});
+				}catch(_){ }
 			} catch(err) { console.error('init error', err); }}
 
 			try{
@@ -1328,8 +1331,8 @@ export default function AdminScreen(){
 	const { token } = useAuth();
 	const webViewRef = React.useRef<WebView>(null);
 
-	// El backend expone las rutas bajo /foodloop en el puerto 4001
-	const apiBase = 'http://localhost:4001/foodloop';
+	// Base de API compartida con servicios (maneja Android 10.0.2.2, etc.)
+	const apiBase = API_BASE;
 	const htmlWithEnv = React.useMemo(()=>{
 		return html
 		  .replace('__API_BASE_URL__', apiBase)
@@ -1341,7 +1344,21 @@ export default function AdminScreen(){
 			<SafeAreaView style={styles.safe}>
 				<Navbar />
 				<View style={styles.iframeContainer}>
-					<iframe title="Admin" srcDoc={htmlWithEnv} style={styles.iframe as any} sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation" />
+					<iframe
+						key={(token||'') + ':admin'}
+						title="Admin"
+						srcDoc={htmlWithEnv}
+						style={styles.iframe as any}
+						sandbox="allow-same-origin allow-scripts allow-forms allow-top-navigation-by-user-activation"
+						onLoad={(e)=>{
+							try{
+								const iframe = e.currentTarget as HTMLIFrameElement;
+								if(iframe && iframe.contentWindow){
+									iframe.contentWindow.postMessage({ type:'set-auth', token: token || '' }, '*');
+								}
+							}catch(_){ }
+						}}
+					/>
 				</View>
 			</SafeAreaView>
 		);
@@ -1354,6 +1371,7 @@ export default function AdminScreen(){
 				ref={webViewRef}
 				originWhitelist={["*"]}
 				source={{ html: htmlWithEnv }}
+				key={(token||'') + ':admin-webview'}
 				style={styles.webview}
 				javaScriptEnabled
 				domStorageEnabled
@@ -1364,6 +1382,12 @@ export default function AdminScreen(){
 						const data = JSON.parse(event.nativeEvent.data);
 						if(data?.type==='navigate' && typeof data.path==='string') router.push(data.path as any);
 					}catch(e){}
+				}}
+				onLoadEnd={() => {
+					try{
+						const js = `try{ AUTH_TOKEN = ${JSON.stringify(token||'')}; if (typeof refreshAll==='function') { refreshAll(); } }catch(e){}`;
+						webViewRef.current?.injectJavaScript(js);
+					}catch(_){ }
 				}}
 			/>
 		</SafeAreaView>

@@ -387,7 +387,7 @@ const html = `<!DOCTYPE html>
 
 export default function LoginScreen() {
   const webViewRef = React.useRef<WebView>(null);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, setAuth } = useAuth();
 
   // Si ya hay sesión iniciada, redirigir automáticamente
   useEffect(() => {
@@ -420,7 +420,9 @@ export default function LoginScreen() {
     try {
       const result = await loginUser(credentials);
       
-    if (result.success && result.user) {
+    if (result.success && result.user && result.token) {
+        // Actualizar contexto inmediatamente para que /admin tenga el token fresco
+        await setAuth({ token: result.token, user: result.user });
         // Determinar la ruta según el estado del usuario
   const estado = Number(result.user.estado);
   const path = estado === 2 ? '/admin' : '/explorador';
@@ -481,6 +483,10 @@ export default function LoginScreen() {
                       }
                     }
                     if (user) await storage.setUserData(user);
+                    // Importante: actualizar el contexto inmediatamente
+                    if (token && user) {
+                      try { await setAuth({ token, user }); } catch(_) {}
+                    }
                     try { console.log('[PARENT] Estado recibido del usuario:', user?.estado, 'typeof:', typeof user?.estado); } catch(e) {}
                     const estado = Number(user?.estado);
                     const path = estado === 2 ? '/admin' : '/explorador';
