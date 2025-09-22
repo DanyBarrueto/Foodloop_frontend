@@ -124,6 +124,7 @@ function buildHtml(initial: any){
           <input id="terms" type="checkbox" class="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded" />
           <label for="terms" class="text-sm text-gray-600">Confirmo que la información proporcionada es verídica y acepto los términos y condiciones.</label>
         </div>
+        <p id="termsError" class="text-sm text-red-600 hidden">Debes aceptar los términos y condiciones para continuar.</p>
 
         <div class="flex flex-col sm:flex-row gap-4 pt-6">
           <button id="submitBtn" type="submit" class="btn-primary flex-1">Enviar Solicitud</button>
@@ -165,8 +166,8 @@ function buildHtml(initial: any){
         try { if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') { window.parent.postMessage(obj, '*'); } } catch(e){}
       };
 
-      function show(el){ el.classList.remove('hidden'); }
-      function hide(el){ el.classList.add('hidden'); }
+  function show(el){ if(el) el.classList.remove('hidden'); }
+  function hide(el){ if(el) el.classList.add('hidden'); }
 
       function navigateToExplorer(){
         try {
@@ -178,6 +179,13 @@ function buildHtml(initial: any){
 
       if(btnBack){ btnBack.addEventListener('click', navigateToExplorer); }
       if(btnCancel){ btnCancel.addEventListener('click', navigateToExplorer); }
+      var terms = qs('terms');
+      var termsError = qs('termsError');
+      if(terms){
+        terms.addEventListener('change', function(){
+          if(terms.checked){ hide(termsError); }
+        });
+      }
 
       // Prefill publication data
       try{
@@ -206,8 +214,8 @@ function buildHtml(initial: any){
 
       form.addEventListener('submit', function(e){
         e.preventDefault();
-        hide(success); hide(error);
-        if(!qs('terms').checked){ show(error); return; }
+        hide(success); hide(error); hide(termsError);
+        if(!terms || !terms.checked){ show(termsError); return; }
         submitBtn.disabled = true; submitBtn.classList.add('opacity-70');
         // Build payload and send to host to call backend
         try {
