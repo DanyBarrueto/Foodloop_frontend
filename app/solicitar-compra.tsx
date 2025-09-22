@@ -2,6 +2,7 @@ import { API_BASE_URL } from '@/services/authService';
 import { createTransaccion } from '@/services/transaccionService';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import SolicitarCompraCss from '@/styles/SolicitarCompra';
+import { RE_EXPIRY_MM_YY, RE_GROUP_4_DIGITS, RE_ISO_YYYY_MM_DD, RE_NON_DIGITS, RE_WHITESPACE } from '@/utils/regex';
 import { storage } from '@/utils/storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
@@ -14,6 +15,15 @@ const safe = JSON.stringify(initial || {})
 	.replace(/<\/script/gi, '<\\/script')
 	.replace(/\u2028/g, '\\u2028')
 	.replace(/\u2029/g, '\\u2029');
+// Inject regex as plain strings so the inline script can reconstruct them safely
+const regexPack = {
+	RE_NON_DIGITS: RE_NON_DIGITS.source,
+	RE_GROUP_4_DIGITS: RE_GROUP_4_DIGITS.source,
+	RE_EXPIRY_MM_YY: RE_EXPIRY_MM_YY.source,
+	RE_ISO_YYYY_MM_DD: RE_ISO_YYYY_MM_DD.source,
+	RE_WHITESPACE: RE_WHITESPACE.source,
+};
+const regexJson = JSON.stringify(regexPack).replace(/</g, '\\u003c');
 return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -229,6 +239,7 @@ return `<!DOCTYPE html>
 
 	<script>
 		(function(){
+			var __REGEX__ = ${regexJson};
 			var __INITIAL__ = ${safe};
 			function qs(id){ return document.getElementById(id); }
 			var form = qs('solicitarForm');
@@ -290,7 +301,7 @@ return `<!DOCTYPE html>
 					else if(n.indexOf('bebid')>-1) emoji='🥤';
 					qs('pEmoji').textContent = emoji;
 					if (p.fechaCaducidad) {
-						var m = String(p.fechaCaducidad).match(/^(\d{4})-(\d{2})-(\d{2})/);
+						var m = String(p.fechaCaducidad).match(new RegExp(__REGEX__.RE_ISO_YYYY_MM_DD));
 						if(m){ qs('pFecha').textContent = '📅 Vence: '+m[3]+'/'+m[2]+'/'+m[1]; qs('pFecha').classList.remove('hidden'); }
 					}
 				}
@@ -308,15 +319,21 @@ return `<!DOCTYPE html>
 			});
 
 			qs('cardNumber').addEventListener('input', function(e){
-				var v = e.target.value.replace(/\D/g,'').slice(0,16).replace(/(\d{4})(?=\d)/g,'$1 ');
+				var reNonDigits = new RegExp(__REGEX__.RE_NON_DIGITS, 'g');
+				var reGroup4 = new RegExp(__REGEX__.RE_GROUP_4_DIGITS, 'g');
+				var v = e.target.value.replace(reNonDigits,'').slice(0,16).replace(reGroup4,'$1 ');
 				e.target.value = v;
 			});
 			qs('expiryDate').addEventListener('input', function(e){
-				var v = e.target.value.replace(/\D/g,'').slice(0,4);
+				var reNonDigits2 = new RegExp(__REGEX__.RE_NON_DIGITS, 'g');
+				var v = e.target.value.replace(reNonDigits2,'').slice(0,4);
 				if(v.length>2) v = v.slice(0,2)+'/'+v.slice(2);
 				e.target.value = v;
 			});
-			qs('cvv').addEventListener('input', function(e){ e.target.value = e.target.value.replace(/\D/g,'').slice(0,3); });
+			qs('cvv').addEventListener('input', function(e){
+				var reNonDigits3 = new RegExp(__REGEX__.RE_NON_DIGITS, 'g');
+				e.target.value = e.target.value.replace(reNonDigits3,'').slice(0,3);
+			});
 
 			function validate(){
 				var qtyVal = (qs('quantity') && qs('quantity').value) || '';
@@ -335,7 +352,7 @@ return `<!DOCTYPE html>
 					var cv = (qs('cvv') && qs('cvv').value) || '';
 					if(cn.length<16) return 'Número de tarjeta inválido';
 					if(nm.length<4) return 'Nombre de tarjeta inválido';
-					var expRE = new RegExp('^\\d{2}/\\d{2}$');
+					var expRE = new RegExp(__REGEX__.RE_EXPIRY_MM_YY);
 					if(!expRE.test(ex)) return 'Expiración inválida';
 					if(cv.length<3) return 'CVV inválido';
 				}

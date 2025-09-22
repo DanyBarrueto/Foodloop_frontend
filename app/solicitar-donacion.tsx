@@ -2,6 +2,7 @@ import { API_BASE_URL } from '@/services/authService';
 import { createTransaccion } from '@/services/transaccionService';
 import embeddedCss from '@/styles/PaginaPrincipal';
 import SolicitarDonacionCss from '@/styles/SolicitarDonacion';
+import { RE_ISO_YYYY_MM_DD } from '@/utils/regex';
 import { storage } from '@/utils/storage';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
@@ -10,6 +11,8 @@ import { WebView } from 'react-native-webview';
 
 function buildHtml(initial: any){
   const safe = JSON.stringify(initial || {}).replace(/</g, '\\u003c');
+  const regexPack = { RE_ISO_YYYY_MM_DD: RE_ISO_YYYY_MM_DD.source };
+  const regexJson = JSON.stringify(regexPack).replace(/</g, '\\u003c');
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -149,6 +152,7 @@ function buildHtml(initial: any){
 
   <script>
     (function(){
+      var __REGEX__ = ${regexJson};
       var __INITIAL__ = ${safe};
       function qs(id){ return document.getElementById(id); }
       var form = qs('donationForm');
@@ -206,7 +210,7 @@ function buildHtml(initial: any){
           else if(n.indexOf('bebid')>-1) emoji='🥤';
           qs('pEmoji').textContent = emoji;
           if (p.fechaCaducidad) {
-            var m = String(p.fechaCaducidad).match(/^(\d{4})-(\d{2})-(\d{2})/);
+            var m = String(p.fechaCaducidad).match(new RegExp(__REGEX__.RE_ISO_YYYY_MM_DD));
             if(m){ qs('pFecha').textContent = 'Vence: '+m[3]+'/'+m[2]+'/'+m[1]; qs('pFecha').classList.remove('hidden'); }
           }
         }
